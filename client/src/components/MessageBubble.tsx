@@ -10,7 +10,7 @@ interface MessageBubbleProps {
 export default function MessageBubble({ message }: MessageBubbleProps) {
   const isUser = message.role === "user";
   const isError = !!message.error;
-  const isPending = message.id.includes('pending');
+  const isPending = message.id?.includes('pending') || false;
 
   return (
     <div

@@ -23,35 +23,26 @@ export default function ChatInput({ messages, setMessages, setCurrentResults }: 
       const response = await apiRequest("POST", "/api/chat", { message });
       return response;
     },
-    onSuccess: (data) => {
+    onSuccess: (assistantMessage: Message) => {
       setMessages(prev => {
         const withoutPending = prev.filter(m => m.id !== pendingIdRef.current);
-        const assistantMessage: Message = {
-          id: `msg-${Date.now()}-assistant`,
-          role: "assistant",
-          content: data.response,
-          sqlQuery: data.sqlQuery,
-          queryResults: data.queryResults,
-          timestamp: Date.now(),
-          error: data.error
-        };
         return [...withoutPending, assistantMessage];
       });
 
-      if (data.queryResults) {
+      if (assistantMessage.queryResults) {
         setCurrentResults({
-          columns: data.queryResults.columns,
-          rows: data.queryResults.rows,
-          rowCount: data.queryResults.rowCount,
-          executionTime: data.queryResults.executionTime,
-          sqlQuery: data.sqlQuery
+          columns: assistantMessage.queryResults.columns,
+          rows: assistantMessage.queryResults.rows,
+          rowCount: assistantMessage.queryResults.rowCount,
+          executionTime: assistantMessage.queryResults.executionTime,
+          sqlQuery: assistantMessage.sqlQuery || ""
         });
       }
 
-      if (data.error) {
+      if (assistantMessage.error) {
         toast({
           title: "Ошибка выполнения запроса",
-          description: data.error,
+          description: assistantMessage.error,
           variant: "destructive"
         });
       }

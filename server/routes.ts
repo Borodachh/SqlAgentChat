@@ -116,12 +116,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       };
       await storage.addMessage(assistantMessage);
 
-      res.json({
-        response: assistantMessage.content,
-        sqlQuery,
-        queryResults,
-        error
-      });
+      res.json(assistantMessage);
     } catch (err: any) {
       console.error("Error in /api/chat:", err);
       res.status(500).json({ 
