@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { chatRequestSchema, exportRequestSchema, type Message } from "@shared/schema";
 import { generateSQLQuery } from "./openai-service";
-import { executeQuery, getDatabaseSchema } from "./database";
+import { executeQuery, getDatabaseSchema } from "./db-utils";
 import ExcelJS from "exceljs";
 import path from "path";
 import fs from "fs";
@@ -78,7 +78,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let error;
 
       try {
-        const result = executeQuery(sqlQuery);
+        const result = await executeQuery(sqlQuery);
         const endTime = performance.now();
         
         const serializedRows = result.rows.map(row => {
