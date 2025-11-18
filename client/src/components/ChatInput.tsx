@@ -21,9 +21,10 @@ export default function ChatInput({ messages, setMessages, setCurrentResults }: 
   const sendMessageMutation = useMutation({
     mutationFn: async (message: string) => {
       const response = await apiRequest("POST", "/api/chat", { message });
-      return response;
+      return await response.json();
     },
     onSuccess: (assistantMessage: Message) => {
+      console.log("Received assistant message:", assistantMessage);
       setMessages(prev => {
         const withoutPending = prev.filter(m => m.id !== pendingIdRef.current);
         return [...withoutPending, assistantMessage];

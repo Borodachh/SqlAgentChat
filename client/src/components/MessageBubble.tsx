@@ -58,10 +58,10 @@ export default function MessageBubble({ message }: MessageBubbleProps) {
         )}
 
         <span className="text-xs text-muted-foreground px-2">
-          {new Date(message.timestamp).toLocaleTimeString('ru-RU', { 
+          {message.timestamp ? new Date(message.timestamp).toLocaleTimeString('ru-RU', { 
             hour: '2-digit', 
             minute: '2-digit' 
-          })}
+          }) : '--:--'}
         </span>
       </div>
 

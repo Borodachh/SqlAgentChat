@@ -6,7 +6,8 @@
 ## Текущее состояние
 Дата: 18 ноября 2025
 - ✅ Frontend: Все компоненты созданы с дизайном согласно design_guidelines.md
-- ✅ Backend: API endpoints, SQLite база, OpenAI интеграция
+- ✅ Backend: API endpoints, PostgreSQL база, OpenAI интеграция
+- ✅ Database: Миграция на PostgreSQL завершена (Neon + Drizzle ORM)
 - ✅ Integration: Полностью завершено и протестировано
 - ✅ Testing: End-to-end тесты пройдены успешно
 - **Статус: ГОТОВ К PRODUCTION**
@@ -27,13 +28,15 @@
    - Объяснение сгенерированных запросов на русском
    - Retry логика с exponential backoff
 
-3. **SQLite база данных**
+3. **PostgreSQL база данных (Neon)**
    - Таблица employees (8 записей)
    - Таблица products (8 записей)
    - Таблица sales (8 записей)
    - Таблица messages для персистентности истории чата
+   - Drizzle ORM для type-safe операций
    - Автоматическая инициализация с примерными данными
    - История сообщений сохраняется между перезапусками
+   - Connection pooling с graceful shutdown
 
 4. **Результаты и экспорт**
    - Таблица результатов с sticky header
@@ -43,8 +46,8 @@
    - Правильная сериализация Date/BigInt в результатах
 
 ### API Endpoints
-- `GET /api/messages` - получение истории чата из SQLite
-- `POST /api/chat` - отправка сообщения, генерация SQL, выполнение запроса, возврат полного Message объекта
+- `GET /api/messages` - получение истории чата из PostgreSQL
+- `POST /api/chat` - отправка сообщения, генерация SQL, выполнение запроса через PostgreSQL, возврат полного Message объекта
 - `POST /api/export` - создание и streaming Excel файла (.xlsx) напрямую клиенту
 
 ## Архитектура
@@ -59,7 +62,8 @@
 
 ### Backend Stack
 - Express.js
-- Better-SQLite3 для базы данных
+- PostgreSQL (Neon) для базы данных
+- Drizzle ORM для type-safe database операций
 - OpenAI SDK с Replit AI Integrations
 - ExcelJS для генерации Excel файлов
 - p-retry для retry логики
@@ -79,10 +83,12 @@ client/src/
     home.tsx - главная страница
 
 server/
-  database.ts - SQLite база и схема
+  db.ts - Neon PostgreSQL connection pool
+  db-utils.ts - executeQuery и getDatabaseSchema
   openai-service.ts - OpenAI интеграция с валидацией SQL
   routes.ts - API endpoints
-  storage.ts - SQLite storage для персистентности сообщений
+  storage.ts - DatabaseStorage для персистентности сообщений
+  seed.ts - Скрипт инициализации данных
 
 shared/
   schema.ts - общие типы и Zod схемы
@@ -107,7 +113,9 @@ shared/
 
 ### NPM пакеты
 - openai - OpenAI SDK
-- better-sqlite3 - SQLite база
+- @neondatabase/serverless - PostgreSQL Neon driver
+- drizzle-orm - Type-safe ORM
+- drizzle-kit - Database toolkit
 - exceljs - генерация Excel
 - p-limit, p-retry - rate limiting и retries
 - + стандартные React, TanStack Query, Shadcn UI
@@ -115,6 +123,7 @@ shared/
 ### Переменные окружения
 - `AI_INTEGRATIONS_OPENAI_BASE_URL` - автоматически через Replit AI Integrations
 - `AI_INTEGRATIONS_OPENAI_API_KEY` - автоматически через Replit AI Integrations
+- `DATABASE_URL` - автоматически через Replit PostgreSQL интеграцию
 
 ## Завершенные этапы
 1. ✅ Phase 1: Schema & Frontend - полностью реализовано
@@ -125,6 +134,14 @@ shared/
    - ✅ E2E тесты пройдены (chat → SQL → results → export)
    - ✅ Architect review passed
    - ✅ История персистентна между перезапусками
+4. ✅ Phase 4: PostgreSQL Migration - полностью завершено (18 ноября 2025)
+   - ✅ Drizzle ORM schema для всех таблиц
+   - ✅ Neon PostgreSQL connection pooling
+   - ✅ Async operations с proper error handling
+   - ✅ Graceful shutdown для корректного закрытия пула
+   - ✅ Seed script для инициализации данных
+   - ✅ Критический bug fix: response.json() парсинг в ChatInput
+   - ✅ E2E тесты пройдены после миграции
 
 ## Безопасность SQL
 - Валидация OpenAI ответов (только SELECT запросы)

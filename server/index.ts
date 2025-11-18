@@ -81,11 +81,19 @@ app.use((req, res, next) => {
   });
 
   // Graceful shutdown
+  let isShuttingDown = false;
   const shutdown = async () => {
+    if (isShuttingDown) return;
+    isShuttingDown = true;
+    
     log("Shutting down gracefully...");
-    await pool.end();
-    server.close(() => {
-      log("Server closed");
+    
+    // First, stop accepting new connections
+    server.close(async () => {
+      log("Server closed, ending database connections...");
+      // Then close database pool
+      await pool.end();
+      log("Database pool closed");
       process.exit(0);
     });
   };
