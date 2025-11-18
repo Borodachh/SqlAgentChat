@@ -1,38 +1,52 @@
-import { type User, type InsertUser } from "@shared/schema";
-import { randomUUID } from "crypto";
-
-// modify the interface with any CRUD methods
-// you might need
+import { type Message } from "@shared/schema";
+import db from "./database";
 
 export interface IStorage {
-  getUser(id: string): Promise<User | undefined>;
-  getUserByUsername(username: string): Promise<User | undefined>;
-  createUser(user: InsertUser): Promise<User>;
+  addMessage(message: Message): Promise<void>;
+  getMessages(): Promise<Message[]>;
+  clearMessages(): Promise<void>;
 }
 
-export class MemStorage implements IStorage {
-  private users: Map<string, User>;
+export class SQLiteStorage implements IStorage {
+  async addMessage(message: Message): Promise<void> {
+    const stmt = db.prepare(`
+      INSERT INTO messages (id, role, content, sql_query, query_results, timestamp, error)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `);
 
-  constructor() {
-    this.users = new Map();
-  }
-
-  async getUser(id: string): Promise<User | undefined> {
-    return this.users.get(id);
-  }
-
-  async getUserByUsername(username: string): Promise<User | undefined> {
-    return Array.from(this.users.values()).find(
-      (user) => user.username === username,
+    stmt.run(
+      message.id,
+      message.role,
+      message.content,
+      message.sqlQuery || null,
+      message.queryResults ? JSON.stringify(message.queryResults) : null,
+      message.timestamp,
+      message.error || null
     );
   }
 
-  async createUser(insertUser: InsertUser): Promise<User> {
-    const id = randomUUID();
-    const user: User = { ...insertUser, id };
-    this.users.set(id, user);
-    return user;
+  async getMessages(): Promise<Message[]> {
+    const stmt = db.prepare(`
+      SELECT * FROM messages ORDER BY timestamp ASC
+    `);
+
+    const rows = stmt.all() as any[];
+    
+    return rows.map(row => ({
+      id: row.id,
+      role: row.role as "user" | "assistant" | "system",
+      content: row.content,
+      sqlQuery: row.sql_query || undefined,
+      queryResults: row.query_results ? JSON.parse(row.query_results) : undefined,
+      timestamp: row.timestamp,
+      error: row.error || undefined
+    }));
+  }
+
+  async clearMessages(): Promise<void> {
+    const stmt = db.prepare(`DELETE FROM messages`);
+    stmt.run();
   }
 }
 
-export const storage = new MemStorage();
+export const storage = new SQLiteStorage();
