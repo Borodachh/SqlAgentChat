@@ -1,7 +1,6 @@
 import { Message } from "@shared/schema";
 import { User, Bot, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
-import SQLQueryDisplay from "./SQLQueryDisplay";
 
 interface MessageBubbleProps {
   message: Message;
@@ -52,10 +51,6 @@ export default function MessageBubble({ message }: MessageBubbleProps) {
           )}
           <p className="whitespace-pre-wrap break-words">{message.content}</p>
         </div>
-
-        {message.sqlQuery && !isUser && (
-          <SQLQueryDisplay query={message.sqlQuery} />
-        )}
 
         <span className="text-xs text-muted-foreground px-2">
           {message.timestamp ? new Date(message.timestamp).toLocaleTimeString('ru-RU', { 
