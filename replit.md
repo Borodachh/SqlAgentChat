@@ -1,158 +1,144 @@
 # AI SQL Chat Bot
 
 ## Обзор проекта
-Веб-приложение чат-бота с AI агентом для преобразования текстовых запросов на естественном языке в SQL запросы и экспорта результатов в Excel файлы.
+Веб-приложение чат-бота с AI агентом для преобразования текстовых запросов на естественном языке в SQL запросы. Поддержка множества LLM провайдеров и баз данных с экспортом результатов в Excel и CSV.
 
 ## Текущее состояние
-Дата: 18 ноября 2025
-- ✅ Frontend: Все компоненты созданы с дизайном согласно design_guidelines.md
-- ✅ Backend: API endpoints, PostgreSQL база, OpenAI интеграция
-- ✅ Database: Миграция на PostgreSQL завершена (Neon + Drizzle ORM)
-- ✅ Integration: Полностью завершено и протестировано
-- ✅ Testing: End-to-end тесты пройдены успешно
-- **Статус: ГОТОВ К PRODUCTION**
+Дата: 3 февраля 2026
+- ✅ Multi-LLM Support: OpenAI, Ollama, Custom API
+- ✅ Multi-Database Support: PostgreSQL, ClickHouse
+- ✅ Type-aware SQL generation
+- ✅ Export: Excel (.xlsx) и CSV
+- ✅ Персистентная история сообщений
+- **Статус: PRODUCTION READY**
 
-## Функциональность
+## Новые возможности (v2.0)
 
-### Реализовано
-1. **Чат-интерфейс**
-   - Двухколоночный layout (чат слева, результаты справа)
-   - История сообщений с отметками времени
-   - Поддержка ролей: user, assistant
-   - Empty state с примерами запросов
-   - Loading states при отправке запросов
+### Multi-LLM Support
+- **OpenAI API**: GPT-4, GPT-5 через официальный API или Replit AI Integrations
+- **Ollama**: Локальные модели (Llama, Mistral, CodeLlama и др.)
+- **Custom API**: Любой OpenAI-совместимый сервер
 
-2. **AI агент на базе OpenAI**
-   - Использует GPT-5 через Replit AI Integrations
-   - Преобразование текста в SQL запросы
-   - Объяснение сгенерированных запросов на русском
-   - Retry логика с exponential backoff
+### Multi-Database Support
+- **PostgreSQL**: Neon Serverless с connection pooling
+- **ClickHouse**: HTTP API с оптимизированными запросами
 
-3. **PostgreSQL база данных (Neon)**
-   - Таблица employees (8 записей)
-   - Таблица products (8 записей)
-   - Таблица sales (8 записей)
-   - Таблица messages для персистентности истории чата
-   - Drizzle ORM для type-safe операций
-   - Автоматическая инициализация с примерными данными
-   - История сообщений сохраняется между перезапусками
-   - Connection pooling с graceful shutdown
+### Type-Aware SQL Generation
+- Автоматическое определение типа БД
+- Оптимизированные подсказки для каждого диалекта
+- PostgreSQL: CURRENT_DATE, INTERVAL, LOWER()
+- ClickHouse: today(), sumIf(), lower()
 
-4. **Результаты и экспорт**
-   - Таблица результатов с sticky header
-   - Отображение SQL запроса в monospace шрифте
-   - Статистика: количество строк, время выполнения
-   - Экспорт в Excel (.xlsx) с прямым скачиванием файла
-   - Правильная сериализация Date/BigInt в результатах
-
-### API Endpoints
-- `GET /api/messages` - получение истории чата из PostgreSQL
-- `POST /api/chat` - отправка сообщения, генерация SQL, выполнение запроса через PostgreSQL, возврат полного Message объекта
-- `POST /api/export` - создание и streaming Excel файла (.xlsx) напрямую клиенту
+### Export
+- Excel (.xlsx) с форматированием заголовков
+- CSV с UTF-8 BOM для корректной кодировки
 
 ## Архитектура
 
-### Frontend Stack
-- React 18 с TypeScript
-- Wouter для роутинга
-- TanStack Query для state management
-- Shadcn UI компоненты
-- Tailwind CSS для стилей
-- Шрифты: Inter (основной), JetBrains Mono (код)
-
-### Backend Stack
-- Express.js
-- PostgreSQL (Neon) для базы данных
-- Drizzle ORM для type-safe database операций
-- OpenAI SDK с Replit AI Integrations
-- ExcelJS для генерации Excel файлов
-- p-retry для retry логики
-
-### Файловая структура
+### LLM Config (server/llm-config.ts)
+```typescript
+LLM_PROVIDER: "openai" | "ollama" | "custom"
+DATABASE_TYPE: "postgresql" | "clickhouse"
 ```
+
+### Database Adapters (server/database-adapters/)
+- `base-adapter.ts` - интерфейс DatabaseAdapter
+- `postgresql-adapter.ts` - Neon PostgreSQL
+- `clickhouse-adapter.ts` - ClickHouse HTTP
+
+### LLM Service (server/llm-service.ts)
+- Универсальный сервис для всех провайдеров
+- OpenAI SDK для совместимости
+- Type-aware system prompts
+
+## Конфигурация через ENV
+
+### LLM
+```env
+LLM_PROVIDER=openai|ollama|custom
+LLM_TEMPERATURE=0.1
+LLM_MAX_TOKENS=2048
+
+# OpenAI
+OPENAI_MODEL=gpt-5
+AI_INTEGRATIONS_OPENAI_BASE_URL=...
+AI_INTEGRATIONS_OPENAI_API_KEY=...
+
+# Ollama
+OLLAMA_BASE_URL=http://localhost:11434/v1
+OLLAMA_MODEL=llama3.1
+
+# Custom
+CUSTOM_LLM_BASE_URL=...
+CUSTOM_LLM_API_KEY=...
+CUSTOM_LLM_MODEL=...
+```
+
+### Database
+```env
+DATABASE_TYPE=postgresql|clickhouse
+
+# PostgreSQL
+DATABASE_URL=postgresql://...
+
+# ClickHouse
+CLICKHOUSE_URL=http://...
+CLICKHOUSE_DATABASE=default
+```
+
+## API Endpoints
+
+### GET /api/config
+Текущая конфигурация LLM и БД.
+
+### GET /api/messages
+История сообщений.
+
+### POST /api/chat
+Отправка сообщения → SQL → результаты.
+
+### POST /api/export?format=xlsx|csv
+Экспорт результатов.
+
+## Файловая структура
+```
+server/
+  llm-config.ts          # Конфигурация провайдеров
+  llm-service.ts         # Универсальный LLM сервис
+  database-adapters/
+    base-adapter.ts      # Интерфейс адаптера
+    postgresql-adapter.ts
+    clickhouse-adapter.ts
+    index.ts             # Фабрика адаптеров
+  routes.ts              # API endpoints
+  storage.ts             # Drizzle storage для сообщений
+  db.ts                  # Drizzle ORM подключение
+  seed.ts                # Инициализация данных
+
 client/src/
   components/
-    ChatPanel.tsx - панель чата
-    MessageBubble.tsx - сообщение в чате
-    ChatInput.tsx - поле ввода
-    ResultsPanel.tsx - панель результатов
-    ResultsTable.tsx - таблица результатов
-    EmptyState.tsx - пустое состояние
-    SQLQueryDisplay.tsx - отображение SQL
-  pages/
-    home.tsx - главная страница
-
-server/
-  db.ts - Neon PostgreSQL connection pool
-  db-utils.ts - executeQuery и getDatabaseSchema
-  openai-service.ts - OpenAI интеграция с валидацией SQL
-  routes.ts - API endpoints
-  storage.ts - DatabaseStorage для персистентности сообщений
-  seed.ts - Скрипт инициализации данных
-
-shared/
-  schema.ts - общие типы и Zod схемы
+    ResultsPanel.tsx     # Excel + CSV export кнопки
+    ...
 ```
 
-## Дизайн
-
-### Цветовая схема
-- Primary: синий (#3B82F6) для акцентов
-- Background: белый/темно-серый в light/dark mode
-- Card: слегка приподнятый фон для панелей
-- Muted: для второстепенного текста
-
-### Компоненты
-- Сообщения пользователя: справа, синий фон
-- Сообщения бота: слева, серый фон
-- SQL запросы: monospace шрифт, подсвеченный фон
-- Таблицы: hover states, четкие границы
-- Кнопки: primary для основных действий, ghost для второстепенных
+## Безопасность SQL
+- Только SELECT и WITH запросы
+- Блокировка: DROP, DELETE, INSERT, UPDATE, ALTER, CREATE, TRUNCATE
+- Удаление комментариев
+- Валидация до выполнения
 
 ## Зависимости
-
-### NPM пакеты
-- openai - OpenAI SDK
-- @neondatabase/serverless - PostgreSQL Neon driver
-- drizzle-orm - Type-safe ORM
-- drizzle-kit - Database toolkit
-- exceljs - генерация Excel
-- p-limit, p-retry - rate limiting и retries
-- + стандартные React, TanStack Query, Shadcn UI
-
-### Переменные окружения
-- `AI_INTEGRATIONS_OPENAI_BASE_URL` - автоматически через Replit AI Integrations
-- `AI_INTEGRATIONS_OPENAI_API_KEY` - автоматически через Replit AI Integrations
-- `DATABASE_URL` - автоматически через Replit PostgreSQL интеграцию
-
-## Завершенные этапы
-1. ✅ Phase 1: Schema & Frontend - полностью реализовано
-2. ✅ Phase 2: Backend - полностью реализовано
-3. ✅ Phase 3: Integration & Testing - полностью завершено
-   - ✅ Workflow запущен и работает стабильно
-   - ✅ Все endpoints протестированы
-   - ✅ E2E тесты пройдены (chat → SQL → results → export)
-   - ✅ Architect review passed
-   - ✅ История персистентна между перезапусками
-4. ✅ Phase 4: PostgreSQL Migration - полностью завершено (18 ноября 2025)
-   - ✅ Drizzle ORM schema для всех таблиц
-   - ✅ Neon PostgreSQL connection pooling
-   - ✅ Async operations с proper error handling
-   - ✅ Graceful shutdown для корректного закрытия пула
-   - ✅ Seed script для инициализации данных
-   - ✅ Критический bug fix: response.json() парсинг в ChatInput
-   - ✅ E2E тесты пройдены после миграции
-
-## Безопасность SQL
-- Валидация OpenAI ответов (только SELECT запросы)
-- Блокировка опасных keywords (DROP, DELETE, INSERT, UPDATE, ALTER, CREATE, EXEC)
-- Удаление комментариев из SQL
-- Защита от SQL injection через validated queries
+- openai - универсальный SDK для всех LLM
+- @neondatabase/serverless - PostgreSQL
+- drizzle-orm - ORM для сообщений
+- exceljs - Excel генерация
+- p-retry - retry с backoff
 
 ## Готовность к Production
-Приложение полностью готово к публикации (deploy):
-- Все функции работают корректно
-- Персистентность данных обеспечена
-- SQL безопасность на уровне MVP
-- UX протестирован и отполирован
-- Нет критических bugs
+✅ Multi-LLM поддержка
+✅ Multi-Database поддержка
+✅ Type-aware SQL generation
+✅ Excel + CSV export
+✅ Graceful shutdown
+✅ Error handling
+✅ Security validation

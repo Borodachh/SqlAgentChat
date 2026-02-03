@@ -4,9 +4,8 @@ import EmptyState from "./EmptyState";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Download, Clock, Table as TableIcon } from "lucide-react";
+import { Download, Clock, Table as TableIcon, FileSpreadsheet, FileText } from "lucide-react";
 import { useMutation } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import SQLQueryDisplay from "./SQLQueryDisplay";
 
@@ -25,8 +24,8 @@ export default function ResultsPanel({ results, messages }: ResultsPanelProps) {
   const { toast } = useToast();
 
   const exportMutation = useMutation({
-    mutationFn: async (data: { columns: string[]; rows: Record<string, any>[] }) => {
-      const response = await fetch("/api/export", {
+    mutationFn: async ({ format, data }: { format: "xlsx" | "csv"; data: { columns: string[]; rows: Record<string, any>[] } }) => {
+      const response = await fetch(`/api/export?format=${format}`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
@@ -35,11 +34,12 @@ export default function ResultsPanel({ results, messages }: ResultsPanelProps) {
       });
 
       if (!response.ok) {
-        throw new Error("Ошибка создания Excel файла");
+        throw new Error(`Ошибка создания ${format.toUpperCase()} файла`);
       }
 
       const blob = await response.blob();
-      const filename = `query_results_${Date.now()}.xlsx`;
+      const extension = format === "csv" ? "csv" : "xlsx";
+      const filename = `query_results_${Date.now()}.${extension}`;
       
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -50,34 +50,37 @@ export default function ResultsPanel({ results, messages }: ResultsPanelProps) {
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
 
-      return { filename };
+      return { filename, format };
     },
-    onMutate: () => {
+    onMutate: ({ format }) => {
       toast({
         title: "Создание файла",
-        description: "Генерируем Excel файл...",
+        description: `Генерируем ${format.toUpperCase()} файл...`,
       });
     },
     onSuccess: (data) => {
       toast({
-        title: "Excel файл готов",
+        title: `${data.format.toUpperCase()} файл готов`,
         description: `Файл ${data.filename} загружен`,
       });
     },
     onError: (error: any) => {
       toast({
         title: "Ошибка экспорта",
-        description: error.message || "Не удалось создать Excel файл",
+        description: error.message || "Не удалось создать файл",
         variant: "destructive"
       });
     }
   });
 
-  const handleExport = () => {
+  const handleExport = (format: "xlsx" | "csv") => {
     if (!results) return;
     exportMutation.mutate({
-      columns: results.columns,
-      rows: results.rows
+      format,
+      data: {
+        columns: results.columns,
+        rows: results.rows
+      }
     });
   };
 
@@ -88,7 +91,7 @@ export default function ResultsPanel({ results, messages }: ResultsPanelProps) {
   return (
     <div className="flex-1 flex flex-col overflow-hidden bg-background">
       <div className="px-6 py-4 border-b bg-card space-y-4">
-        <div className="flex items-center justify-between gap-4">
+        <div className="flex items-center justify-between gap-4 flex-wrap">
           <div className="flex items-center gap-3 flex-wrap">
             <Badge variant="secondary" className="gap-1.5">
               <TableIcon className="w-3 h-3" />
@@ -100,15 +103,27 @@ export default function ResultsPanel({ results, messages }: ResultsPanelProps) {
             </Badge>
           </div>
           
-          <Button 
-            onClick={handleExport}
-            disabled={exportMutation.isPending}
-            className="gap-2"
-            data-testid="button-export-excel"
-          >
-            <Download className="w-4 h-4" />
-            Экспорт в Excel
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button 
+              onClick={() => handleExport("xlsx")}
+              disabled={exportMutation.isPending}
+              className="gap-2"
+              data-testid="button-export-excel"
+            >
+              <FileSpreadsheet className="w-4 h-4" />
+              Excel
+            </Button>
+            <Button 
+              onClick={() => handleExport("csv")}
+              disabled={exportMutation.isPending}
+              variant="outline"
+              className="gap-2"
+              data-testid="button-export-csv"
+            >
+              <FileText className="w-4 h-4" />
+              CSV
+            </Button>
+          </div>
         </div>
 
         <SQLQueryDisplay query={results.sqlQuery} showCopy />

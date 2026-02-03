@@ -14,10 +14,10 @@ export class DatabaseStorage implements IStorage {
       id: message.id,
       role: message.role,
       content: message.content,
-      sqlQuery: message.sqlQuery || null,
-      queryResults: message.queryResults || null,
+      sqlQuery: message.sqlQuery ?? null,
+      queryResults: message.queryResults ?? null,
       timestamp: message.timestamp,
-      error: message.error || null
+      error: message.error ?? null
     });
   }
 
@@ -28,10 +28,10 @@ export class DatabaseStorage implements IStorage {
       id: row.id,
       role: row.role as "user" | "assistant" | "system",
       content: row.content,
-      sqlQuery: row.sqlQuery || undefined,
-      queryResults: row.queryResults as any || undefined,
+      sqlQuery: row.sqlQuery,
+      queryResults: row.queryResults as Message["queryResults"],
       timestamp: Number(row.timestamp),
-      error: row.error || undefined
+      error: row.error
     }));
   }
 
