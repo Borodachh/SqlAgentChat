@@ -5,6 +5,8 @@
 ## Возможности
 
 - **Чат-интерфейс** с поддержкой естественного языка (русский)
+- **Множественные чаты** с историей и переключением между ними
+- **Сворачиваемая боковая панель** с иконками чатов
 - **Множество LLM провайдеров**:
   - OpenAI API (GPT-4, GPT-5)
   - Ollama (локальные модели: Llama, Mistral, и др.)
@@ -16,7 +18,7 @@
 - **Экспорт результатов**:
   - Excel (.xlsx) с форматированием
   - CSV с UTF-8 поддержкой
-- **Персистентная история** сообщений между сессиями
+- **Персистентная история** сообщений и чатов между сессиями
 
 ## Технологический стек
 
@@ -120,10 +122,10 @@ ai-sql-chatbot/
 ├── client/                      # Frontend приложение
 │   └── src/
 │       ├── components/          # React компоненты
-│       │   ├── ChatPanel.tsx    # Левая панель с историей чата
+│       │   ├── ChatPanel.tsx    # Панель с историей чата
 │       │   ├── ChatInput.tsx    # Поле ввода сообщений
 │       │   ├── MessageBubble.tsx # Отдельное сообщение в чате
-│       │   ├── ResultsPanel.tsx # Правая панель с результатами
+│       │   ├── ResultsPanel.tsx # Панель с результатами
 │       │   ├── ResultsTable.tsx # Таблица результатов SQL
 │       │   ├── SQLQueryDisplay.tsx # Отображение SQL запроса
 │       │   ├── EmptyState.tsx   # Пустое состояние
@@ -134,7 +136,7 @@ ai-sql-chatbot/
 │       │   ├── queryClient.ts   # TanStack Query настройка
 │       │   └── utils.ts         # Utility функции
 │       ├── pages/
-│       │   ├── home.tsx         # Главная страница
+│       │   ├── home.tsx         # Главная страница с чатами
 │       │   └── not-found.tsx    # 404 страница
 │       ├── App.tsx              # Root компонент
 │       ├── index.css            # Tailwind + кастомные стили
@@ -149,7 +151,7 @@ ai-sql-chatbot/
 │   │   ├── clickhouse-adapter.ts # ClickHouse адаптер
 │   │   └── index.ts             # Фабрика адаптеров
 │   ├── db.ts                    # Drizzle ORM подключение
-│   ├── storage.ts               # DatabaseStorage для сообщений
+│   ├── storage.ts               # DatabaseStorage для чатов и сообщений
 │   ├── routes.ts                # API endpoints
 │   ├── seed.ts                  # Скрипт инициализации данных
 │   ├── index.ts                 # Express сервер + graceful shutdown
@@ -169,7 +171,92 @@ ai-sql-chatbot/
 
 ## API Endpoints
 
-### GET /api/config
+### Чаты
+
+#### GET /api/chats
+Получение списка всех чатов.
+
+**Ответ:**
+```json
+{
+  "chats": [
+    {
+      "id": "chat-1234567890",
+      "title": "Покажи всех сотрудников",
+      "createdAt": 1699999999999,
+      "updatedAt": 1699999999999
+    }
+  ]
+}
+```
+
+#### POST /api/chats
+Создание нового чата.
+
+**Ответ:**
+```json
+{
+  "id": "chat-1234567890",
+  "title": "Новый чат",
+  "createdAt": 1699999999999,
+  "updatedAt": 1699999999999
+}
+```
+
+#### DELETE /api/chats/:chatId
+Удаление чата и всех его сообщений.
+
+### Сообщения
+
+#### GET /api/chats/:chatId/messages
+Получение истории сообщений чата.
+
+**Ответ:**
+```json
+{
+  "messages": [
+    {
+      "id": "msg-1234-user",
+      "chatId": "chat-1234567890",
+      "role": "user",
+      "content": "Покажи всех сотрудников",
+      "timestamp": 1699999999999
+    }
+  ]
+}
+```
+
+#### POST /api/chats/:chatId/chat
+Отправка сообщения и получение SQL результатов.
+
+**Запрос:**
+```json
+{
+  "message": "Покажи всех сотрудников из IT отдела"
+}
+```
+
+**Ответ:**
+```json
+{
+  "id": "msg-1234-assistant",
+  "chatId": "chat-1234567890",
+  "role": "assistant",
+  "content": "Возвращает всех сотрудников из отдела IT",
+  "sqlQuery": "SELECT * FROM employees WHERE department = 'IT';",
+  "queryResults": {
+    "columns": ["id", "name", "position", "department", "salary", "hire_date"],
+    "rows": [...],
+    "rowCount": 3,
+    "executionTime": 12.5
+  },
+  "timestamp": 1699999999999
+}
+```
+
+### Конфигурация
+
+#### GET /api/config
 Получение текущей конфигурации.
 
 **Ответ:**
@@ -185,37 +272,9 @@ ai-sql-chatbot/
 }
 ```
 
-### GET /api/messages
-Получение истории чата.
+### Экспорт
 
-### POST /api/chat
-Отправка сообщения и получение SQL результатов.
-
-**Запрос:**
-```json
-{
-  "message": "Покажи всех сотрудников из IT отдела"
-}
-```
-
-**Ответ:**
-```json
-{
-  "id": "msg-1234-assistant",
-  "role": "assistant",
-  "content": "Возвращает всех сотрудников из отдела IT",
-  "sqlQuery": "SELECT * FROM employees WHERE department = 'IT';",
-  "queryResults": {
-    "columns": ["id", "name", "position", "department", "salary", "hire_date"],
-    "rows": [...],
-    "rowCount": 3,
-    "executionTime": 12.5
-  },
-  "timestamp": 1699999999999
-}
-```
-
-### POST /api/export?format=xlsx|csv
+#### POST /api/export?format=xlsx|csv
 Экспорт результатов в Excel или CSV.
 
 **Query параметры:**
@@ -298,7 +357,8 @@ npm run db:push    # Синхронизация схемы
 ┌─────────────────────────────────────────────────────────────┐
 │                         Frontend                             │
 │  ┌─────────────┐    ┌─────────────┐    ┌─────────────┐     │
-│  │  ChatPanel  │    │ResultsPanel │    │Export (XLSX/CSV)  │
+│  │ Chat Sidebar│    │  ChatPanel  │    │ResultsPanel │     │
+│  │ (Collapsible)    │             │    │ + Export    │     │
 │  └──────┬──────┘    └──────┬──────┘    └──────┬──────┘     │
 │         └─────────────────┼───────────────────┘            │
 │                    TanStack Query                           │
@@ -309,8 +369,8 @@ npm run db:push    # Синхронизация схемы
 │                         Backend                              │
 │  ┌─────────────┐    ┌─────────────┐    ┌─────────────┐     │
 │  │   Routes    │───▶│ LLM Service │───▶│  Validator  │     │
-│  └──────┬──────┘    └──────┬──────┘    └──────┬──────┘     │
-│         │                  │                   │            │
+│  │ /api/chats  │    └──────┬──────┘    └──────┬──────┘     │
+│  └──────┬──────┘           │                   │            │
 │         │           ┌──────┴──────┐           │            │
 │         │           │ LLM Config  │           │            │
 │         │           │ OpenAI/Ollama/Custom    │            │
@@ -318,7 +378,8 @@ npm run db:push    # Синхронизация схемы
 │         ▼                                      ▼            │
 │  ┌─────────────┐                       ┌─────────────┐     │
 │  │   Storage   │◀──────────────────────│ DB Adapters │     │
-│  └──────┬──────┘                       └──────┬──────┘     │
+│  │ chats/msgs  │                       └──────┬──────┘     │
+│  └──────┬──────┘                              │            │
 └─────────┼─────────────────────────────────────┼─────────────┘
           │                                      │
           ▼                                      ▼
@@ -326,47 +387,36 @@ npm run db:push    # Синхронизация схемы
 │                    Database Layer                            │
 │  ┌───────────────────────┐    ┌───────────────────────┐    │
 │  │   PostgreSQL (Neon)   │    │      ClickHouse       │    │
-│  │   employees, products │    │   analytics, events   │    │
-│  │   sales, messages     │    │   logs, metrics       │    │
+│  │ chats, messages       │    │   analytics, events   │    │
+│  │ employees, products   │    │   logs, metrics       │    │
+│  │ sales                 │    │                       │    │
 │  └───────────────────────┘    └───────────────────────┘    │
 └─────────────────────────────────────────────────────────────┘
 ```
 
-## Добавление нового LLM провайдера
+## База данных
 
-1. Добавьте новый тип в `server/llm-config.ts`:
-```typescript
-export const LLMProviderSchema = z.enum(["openai", "ollama", "custom", "new_provider"]);
-```
+### Таблицы
 
-2. Добавьте конфигурацию в `getLLMConfig()`:
-```typescript
-case "new_provider":
-  return {
-    provider: "new_provider",
-    model: getEnvWithDefault("NEW_PROVIDER_MODEL", "default-model"),
-    baseUrl: getEnvWithDefault("NEW_PROVIDER_BASE_URL", ""),
-    apiKey: getEnvWithDefault("NEW_PROVIDER_API_KEY", ""),
-    // ...
-  };
-```
+**chats** - Список чатов
+| Колонка | Тип | Описание |
+|---------|-----|----------|
+| id | text | Уникальный ID чата |
+| title | text | Название чата (из первого сообщения) |
+| created_at | bigint | Время создания |
+| updated_at | bigint | Время последнего обновления |
 
-## Добавление новой базы данных
-
-1. Создайте адаптер в `server/database-adapters/`:
-```typescript
-export class NewDBAdapter extends BaseDatabaseAdapter {
-  readonly type = "newdb" as const;
-  // реализуйте методы connect, disconnect, executeQuery, getTables
-}
-```
-
-2. Добавьте тип в `server/llm-config.ts`:
-```typescript
-export const DatabaseTypeSchema = z.enum(["postgresql", "clickhouse", "newdb"]);
-```
-
-3. Зарегистрируйте в `server/database-adapters/index.ts`
+**messages** - Сообщения чатов
+| Колонка | Тип | Описание |
+|---------|-----|----------|
+| id | text | Уникальный ID сообщения |
+| chat_id | text | ID чата (FK) |
+| role | text | user / assistant / system |
+| content | text | Текст сообщения |
+| sql_query | text | SQL запрос (nullable) |
+| query_results | jsonb | Результаты запроса (nullable) |
+| timestamp | bigint | Время сообщения |
+| error | text | Ошибка (nullable) |
 
 ## Лицензия
 
