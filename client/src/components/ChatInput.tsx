@@ -1,30 +1,30 @@
 import { useState, KeyboardEvent, Dispatch, SetStateAction, useRef } from "react";
 import { Message } from "@shared/schema";
 import { useMutation } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Send, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 interface ChatInputProps {
+  chatId: string;
   messages: Message[];
   setMessages: Dispatch<SetStateAction<Message[]>>;
   setCurrentResults: (results: any) => void;
 }
 
-export default function ChatInput({ messages, setMessages, setCurrentResults }: ChatInputProps) {
+export default function ChatInput({ chatId, messages, setMessages, setCurrentResults }: ChatInputProps) {
   const [input, setInput] = useState("");
   const { toast } = useToast();
   const pendingIdRef = useRef<string>("");
 
   const sendMessageMutation = useMutation({
     mutationFn: async (message: string) => {
-      const response = await apiRequest("POST", "/api/chat", { message });
+      const response = await apiRequest("POST", `/api/chats/${chatId}/chat`, { message });
       return await response.json();
     },
     onSuccess: (assistantMessage: Message) => {
-      console.log("Received assistant message:", assistantMessage);
       setMessages(prev => {
         const withoutPending = prev.filter(m => m.id !== pendingIdRef.current);
         return [...withoutPending, assistantMessage];
@@ -47,6 +47,8 @@ export default function ChatInput({ messages, setMessages, setCurrentResults }: 
           variant: "destructive"
         });
       }
+
+      queryClient.invalidateQueries({ queryKey: ['/api/chats'] });
     },
     onError: (error: any) => {
       setMessages(prev => prev.filter(m => m.id !== pendingIdRef.current));
@@ -65,9 +67,13 @@ export default function ChatInput({ messages, setMessages, setCurrentResults }: 
     const timestamp = Date.now();
     const userMessage: Message = {
       id: `msg-${timestamp}-user`,
+      chatId,
       role: "user",
       content: messageContent,
-      timestamp
+      timestamp,
+      sqlQuery: null,
+      queryResults: null,
+      error: null
     };
 
     setMessages(prev => [...prev, userMessage]);
@@ -77,9 +83,13 @@ export default function ChatInput({ messages, setMessages, setCurrentResults }: 
     pendingIdRef.current = pendingId;
     const pendingMessage: Message = {
       id: pendingId,
+      chatId,
       role: "assistant",
       content: "Генерирую SQL запрос...",
-      timestamp: timestamp + 1
+      timestamp: timestamp + 1,
+      sqlQuery: null,
+      queryResults: null,
+      error: null
     };
     setMessages(prev => [...prev, pendingMessage]);
 

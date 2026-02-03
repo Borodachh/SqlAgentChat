@@ -3,15 +3,15 @@ import { Message } from "@shared/schema";
 import MessageBubble from "./MessageBubble";
 import ChatInput from "./ChatInput";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Separator } from "@/components/ui/separator";
 
 interface ChatPanelProps {
+  chatId: string;
   messages: Message[];
   setMessages: Dispatch<SetStateAction<Message[]>>;
   setCurrentResults: (results: any) => void;
 }
 
-export default function ChatPanel({ messages, setMessages, setCurrentResults }: ChatPanelProps) {
+export default function ChatPanel({ chatId, messages, setMessages, setCurrentResults }: ChatPanelProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -61,6 +61,7 @@ export default function ChatPanel({ messages, setMessages, setCurrentResults }: 
 
       <div className="border-t">
         <ChatInput 
+          chatId={chatId}
           messages={messages} 
           setMessages={setMessages}
           setCurrentResults={setCurrentResults}

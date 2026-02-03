@@ -60,7 +60,18 @@ export type Employee = typeof employees.$inferSelect;
 export type Product = typeof products.$inferSelect;
 export type Sale = typeof sales.$inferSelect;
 export type Chat = typeof chats.$inferSelect;
-export type Message = typeof messages.$inferSelect;
+
+export interface QueryResults {
+  columns: string[];
+  rows: Record<string, any>[];
+  rowCount: number;
+  executionTime: number;
+}
+
+export type MessageBase = typeof messages.$inferSelect;
+export type Message = Omit<MessageBase, 'queryResults'> & {
+  queryResults?: QueryResults | null;
+};
 
 export type InsertEmployee = z.infer<typeof insertEmployeeSchema>;
 export type InsertProduct = z.infer<typeof insertProductSchema>;
