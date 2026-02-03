@@ -30,8 +30,16 @@ export const sales = pgTable("sales", {
   totalAmount: real("total_amount").notNull()
 });
 
+export const chats = pgTable("chats", {
+  id: text("id").primaryKey(),
+  title: text("title").notNull(),
+  createdAt: bigint("created_at", { mode: "number" }).notNull(),
+  updatedAt: bigint("updated_at", { mode: "number" }).notNull()
+});
+
 export const messages = pgTable("messages", {
   id: text("id").primaryKey(),
+  chatId: text("chat_id").notNull().references(() => chats.id, { onDelete: "cascade" }),
   role: text("role").notNull(),
   content: text("content").notNull(),
   sqlQuery: text("sql_query"),
@@ -44,17 +52,20 @@ export const messages = pgTable("messages", {
 export const insertEmployeeSchema = createInsertSchema(employees).omit({ id: true });
 export const insertProductSchema = createInsertSchema(products).omit({ id: true });
 export const insertSaleSchema = createInsertSchema(sales).omit({ id: true });
+export const insertChatSchema = createInsertSchema(chats);
 export const insertMessageSchema = createInsertSchema(messages);
 
 // Select types
 export type Employee = typeof employees.$inferSelect;
 export type Product = typeof products.$inferSelect;
 export type Sale = typeof sales.$inferSelect;
+export type Chat = typeof chats.$inferSelect;
 export type Message = typeof messages.$inferSelect;
 
 export type InsertEmployee = z.infer<typeof insertEmployeeSchema>;
 export type InsertProduct = z.infer<typeof insertProductSchema>;
 export type InsertSale = z.infer<typeof insertSaleSchema>;
+export type InsertChat = z.infer<typeof insertChatSchema>;
 export type InsertMessage = z.infer<typeof insertMessageSchema>;
 
 // Validation schemas

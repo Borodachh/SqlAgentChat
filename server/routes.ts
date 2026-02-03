@@ -1,23 +1,65 @@
 import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { chatRequestSchema, exportRequestSchema, type Message } from "@shared/schema";
+import { chatRequestSchema, exportRequestSchema, type Message, type Chat } from "@shared/schema";
 import { generateSQLQuery } from "./llm-service";
 import { getActiveAdapter, getCurrentAdapterType, disconnectAdapter } from "./database-adapters";
 import { getActiveConfig } from "./llm-config";
 import ExcelJS from "exceljs";
 import path from "path";
+import { z } from "zod";
+
+const chatIdSchema = z.object({
+  chatId: z.string().min(1)
+});
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  app.get("/api/messages", async (req: Request, res: Response) => {
+  app.get("/api/chats", async (req: Request, res: Response) => {
     try {
-      const messages = await storage.getMessages();
+      const chats = await storage.getChats();
+      res.json({ chats });
+    } catch (err: any) {
+      console.error("Error in /api/chats:", err);
+      res.status(500).json({ error: err.message || "Внутренняя ошибка сервера" });
+    }
+  });
+
+  app.post("/api/chats", async (req: Request, res: Response) => {
+    try {
+      const now = Date.now();
+      const chat: Chat = {
+        id: `chat-${now}`,
+        title: "Новый чат",
+        createdAt: now,
+        updatedAt: now
+      };
+      await storage.createChat(chat);
+      res.json(chat);
+    } catch (err: any) {
+      console.error("Error in POST /api/chats:", err);
+      res.status(500).json({ error: err.message || "Внутренняя ошибка сервера" });
+    }
+  });
+
+  app.delete("/api/chats/:chatId", async (req: Request, res: Response) => {
+    try {
+      const { chatId } = req.params;
+      await storage.deleteChat(chatId);
+      res.json({ success: true });
+    } catch (err: any) {
+      console.error("Error in DELETE /api/chats:", err);
+      res.status(500).json({ error: err.message || "Внутренняя ошибка сервера" });
+    }
+  });
+
+  app.get("/api/chats/:chatId/messages", async (req: Request, res: Response) => {
+    try {
+      const { chatId } = req.params;
+      const messages = await storage.getMessages(chatId);
       res.json({ messages });
     } catch (err: any) {
       console.error("Error in /api/messages:", err);
-      res.status(500).json({ 
-        error: err.message || "Внутренняя ошибка сервера" 
-      });
+      res.status(500).json({ error: err.message || "Внутренняя ошибка сервера" });
     }
   });
 
@@ -39,12 +81,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/chat", async (req: Request, res: Response) => {
+  app.post("/api/chats/:chatId/chat", async (req: Request, res: Response) => {
     try {
+      const { chatId } = req.params;
       const { message } = chatRequestSchema.parse(req.body);
+
+      const chat = await storage.getChat(chatId);
+      if (!chat) {
+        return res.status(404).json({ error: "Чат не найден" });
+      }
 
       const userMessage: Message = {
         id: `msg-${Date.now()}-user`,
+        chatId,
         role: "user",
         content: message,
         timestamp: Date.now(),
@@ -53,6 +102,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         error: null
       };
       await storage.addMessage(userMessage);
+
+      if (chat.title === "Новый чат") {
+        const title = message.length > 30 ? message.substring(0, 30) + "..." : message;
+        await storage.updateChat(chatId, title);
+      }
 
       const adapter = await getActiveAdapter();
       const databaseType = getCurrentAdapterType();
@@ -68,6 +122,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } catch (err: any) {
         const errorMessage: Message = {
           id: `msg-${Date.now()}-assistant`,
+          chatId,
           role: "assistant",
           content: `Ошибка генерации SQL: ${err.message}`,
           timestamp: Date.now(),
@@ -83,6 +138,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!sqlQuery) {
         const noQueryMessage: Message = {
           id: `msg-${Date.now()}-assistant`,
+          chatId,
           role: "assistant",
           content: explanation || "Не удалось сгенерировать SQL запрос для данного вопроса.",
           timestamp: Date.now(),
@@ -129,6 +185,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const assistantMessage: Message = {
         id: `msg-${Date.now()}-assistant`,
+        chatId,
         role: "assistant",
         content: error || explanation,
         sqlQuery: sqlQuery || null,
