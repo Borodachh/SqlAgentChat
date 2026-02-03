@@ -6,12 +6,14 @@ import ResultsPanel from "@/components/ResultsPanel";
 import { Database, Plus, MessageSquare, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { cn } from "@/lib/utils";
 
 export default function Home() {
   const [activeChatId, setActiveChatId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
+  const [sidebarExpanded, setSidebarExpanded] = useState(false);
   const [currentResults, setCurrentResults] = useState<{
     columns: string[];
     rows: Record<string, any>[];
@@ -108,52 +110,100 @@ export default function Home() {
 
   return (
     <div className="flex h-screen bg-background">
-      <aside className="w-64 border-r bg-muted/30 flex flex-col">
-        <div className="p-3 border-b">
-          <Button
-            onClick={handleNewChat}
-            disabled={createChatMutation.isPending}
-            className="w-full gap-2"
-            data-testid="button-new-chat"
-          >
-            <Plus className="w-4 h-4" />
-            Новый чат
-          </Button>
+      <aside 
+        className={cn(
+          "border-r bg-muted/30 flex flex-col transition-all duration-200 ease-in-out",
+          sidebarExpanded ? "w-64" : "w-14"
+        )}
+        onMouseEnter={() => setSidebarExpanded(true)}
+        onMouseLeave={() => setSidebarExpanded(false)}
+      >
+        <div className="p-2 border-b">
+          {sidebarExpanded ? (
+            <Button
+              onClick={handleNewChat}
+              disabled={createChatMutation.isPending}
+              className="w-full gap-2"
+              data-testid="button-new-chat"
+            >
+              <Plus className="w-4 h-4" />
+              Новый чат
+            </Button>
+          ) : (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  onClick={handleNewChat}
+                  disabled={createChatMutation.isPending}
+                  size="icon"
+                  className="w-10 h-10"
+                  data-testid="button-new-chat"
+                >
+                  <Plus className="w-4 h-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="right">Новый чат</TooltipContent>
+            </Tooltip>
+          )}
         </div>
         
         <ScrollArea className="flex-1">
           <div className="p-2 space-y-1">
             {chatsLoading ? (
-              <div className="text-sm text-muted-foreground p-2">Загрузка...</div>
-            ) : chats.length === 0 ? (
-              <div className="text-sm text-muted-foreground p-2">
-                Нет чатов. Создайте новый.
+              <div className={cn("text-sm text-muted-foreground", sidebarExpanded ? "p-2" : "p-1")}>
+                {sidebarExpanded ? "Загрузка..." : "..."}
               </div>
+            ) : chats.length === 0 ? (
+              sidebarExpanded && (
+                <div className="text-sm text-muted-foreground p-2">
+                  Нет чатов. Создайте новый.
+                </div>
+              )
             ) : (
               chats.map((chat) => (
-                <div
-                  key={chat.id}
-                  onClick={() => handleSelectChat(chat.id)}
-                  className={cn(
-                    "flex items-center gap-2 p-2 rounded-md cursor-pointer group hover-elevate",
-                    activeChatId === chat.id 
-                      ? "bg-accent text-accent-foreground" 
-                      : "hover:bg-accent/50"
-                  )}
-                  data-testid={`chat-item-${chat.id}`}
-                >
-                  <MessageSquare className="w-4 h-4 flex-shrink-0" />
-                  <span className="text-sm truncate flex-1">{chat.title}</span>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="w-6 h-6 opacity-0 group-hover:opacity-100 transition-opacity"
-                    onClick={(e) => handleDeleteChat(e, chat.id)}
-                    data-testid={`button-delete-chat-${chat.id}`}
+                sidebarExpanded ? (
+                  <div
+                    key={chat.id}
+                    onClick={() => handleSelectChat(chat.id)}
+                    className={cn(
+                      "flex items-center gap-2 p-2 rounded-md cursor-pointer group hover-elevate",
+                      activeChatId === chat.id 
+                        ? "bg-accent text-accent-foreground" 
+                        : "hover:bg-accent/50"
+                    )}
+                    data-testid={`chat-item-${chat.id}`}
                   >
-                    <Trash2 className="w-3 h-3" />
-                  </Button>
-                </div>
+                    <MessageSquare className="w-4 h-4 flex-shrink-0" />
+                    <span className="text-sm truncate flex-1">{chat.title}</span>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="w-6 h-6 opacity-0 group-hover:opacity-100 transition-opacity"
+                      onClick={(e) => handleDeleteChat(e, chat.id)}
+                      data-testid={`button-delete-chat-${chat.id}`}
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </Button>
+                  </div>
+                ) : (
+                  <Tooltip key={chat.id}>
+                    <TooltipTrigger asChild>
+                      <div
+                        onClick={() => handleSelectChat(chat.id)}
+                        className={cn(
+                          "flex items-center justify-center p-2 rounded-md cursor-pointer hover-elevate",
+                          activeChatId === chat.id 
+                            ? "bg-accent text-accent-foreground" 
+                            : "hover:bg-accent/50"
+                        )}
+                        data-testid={`chat-item-${chat.id}`}
+                      >
+                        <MessageSquare className="w-4 h-4" />
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent side="right">{chat.title}</TooltipContent>
+                  </Tooltip>
+                )
               ))
             )}
           </div>
