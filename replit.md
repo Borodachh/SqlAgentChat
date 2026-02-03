@@ -10,6 +10,7 @@
 - ✅ Type-aware SQL generation
 - ✅ Export: Excel (.xlsx) и CSV
 - ✅ Персистентная история сообщений
+- ✅ Множественные чаты с историей
 - **Статус: PRODUCTION READY**
 
 ## Новые возможности (v2.0)
