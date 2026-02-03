@@ -46,13 +46,14 @@ function getSystemPrompt(databaseSchema: string, databaseType: DatabaseType): st
 ${databaseSchema}
 
 Правила:
-1. Генерируй только SELECT запросы (без INSERT, UPDATE, DELETE, DROP, ALTER)
+1. Генерируй только SELECT запросы (без INSERT, UPDATE, DELETE, DROP, ALTER, CREATE, TRUNCATE)
 2. Используй правильный синтаксис ${sqlDialect}
 ${dialectNotes}
 3. Возвращай результат в формате JSON: { "sqlQuery": "...", "explanation": "..." }
 4. В explanation кратко объясни что делает запрос на русском языке
 5. Не добавляй markdown форматирование, только чистый JSON
-6. Если вопрос неясен или невозможно построить запрос, верни sqlQuery как пустую строку и объяснение в explanation`;
+6. Если вопрос неясен или невозможно построить запрос, верни sqlQuery как пустую строку и объяснение в explanation
+7. Если пользователь просит изменить, удалить, добавить данные или структуру БД, верни sqlQuery как пустую строку и в explanation объясни что такие операции запрещены: "Я могу выполнять только SELECT-запросы для чтения данных. Операции изменения данных запрещены в целях безопасности."`;
 }
 
 export async function generateSQLQuery(
@@ -121,16 +122,42 @@ export async function generateSQLQuery(
             const cleanQuery = parsed.sqlQuery.trim().replace(/\/\*[\s\S]*?\*\/|--.*$/gm, '').trim();
             const upperQuery = cleanQuery.toUpperCase();
             
-            if (!upperQuery.startsWith('SELECT') && !upperQuery.startsWith('WITH')) {
-              console.error("Unsafe SQL query generated:", parsed.sqlQuery);
-              throw new AbortError("AI сгенерировал небезопасный SQL запрос");
-            }
-
+            // Split by semicolons to detect multi-statement queries
+            const statements = upperQuery.split(';').map((s: string) => s.trim()).filter((s: string) => s.length > 0);
+            
             const dangerousKeywords = ['DROP', 'DELETE', 'INSERT', 'UPDATE', 'ALTER', 'CREATE', 'EXEC', 'EXECUTE', 'TRUNCATE'];
-            for (const keyword of dangerousKeywords) {
-              if (upperQuery.includes(keyword) && !upperQuery.includes('SELECT')) {
-                console.error("Malicious SQL query detected:", parsed.sqlQuery);
-                throw new AbortError("Обнаружен опасный SQL запрос");
+            const keywordMessages: Record<string, string> = {
+              'DROP': 'Команда DROP запрещена. Я не могу удалять таблицы или базы данных.',
+              'DELETE': 'Команда DELETE запрещена. Я не могу удалять записи из таблиц.',
+              'INSERT': 'Команда INSERT запрещена. Я не могу добавлять новые записи в таблицы.',
+              'UPDATE': 'Команда UPDATE запрещена. Я не могу изменять существующие записи.',
+              'ALTER': 'Команда ALTER запрещена. Я не могу изменять структуру таблиц.',
+              'CREATE': 'Команда CREATE запрещена. Я не могу создавать новые таблицы или объекты.',
+              'TRUNCATE': 'Команда TRUNCATE запрещена. Я не могу очищать таблицы.',
+              'EXEC': 'Выполнение процедур запрещено.',
+              'EXECUTE': 'Выполнение процедур запрещено.'
+            };
+            
+            // Check each statement
+            for (const statement of statements) {
+              // Each statement must start with SELECT or WITH
+              if (!statement.startsWith('SELECT') && !statement.startsWith('WITH')) {
+                console.warn("Unsafe SQL query blocked:", parsed.sqlQuery);
+                return {
+                  sqlQuery: "",
+                  explanation: "Я могу выполнять только SELECT-запросы для чтения данных. Запросы на изменение данных (INSERT, UPDATE, DELETE) или структуры базы (CREATE, DROP, ALTER) запрещены в целях безопасности."
+                };
+              }
+              
+              // Check for dangerous keywords as statement starters (after split)
+              for (const keyword of dangerousKeywords) {
+                if (statement.startsWith(keyword)) {
+                  console.warn("Dangerous SQL keyword blocked:", keyword, parsed.sqlQuery);
+                  return {
+                    sqlQuery: "",
+                    explanation: keywordMessages[keyword] || "Обнаружена запрещённая команда. Разрешены только SELECT-запросы для чтения данных."
+                  };
+                }
               }
             }
           }
