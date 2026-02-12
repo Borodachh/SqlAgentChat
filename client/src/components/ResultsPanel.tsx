@@ -97,7 +97,7 @@ export default function ResultsPanel({ results, messages }: ResultsPanelProps) {
           <div className="flex items-center gap-3 flex-wrap">
             <Badge variant="secondary" className="gap-1.5">
               <TableIcon className="w-3 h-3" />
-              <span data-testid="text-row-count">{results.rowCount} строк</span>
+              <span data-testid="text-row-count">{results.rowCount} rows</span>
             </Badge>
             <Badge variant="secondary" className="gap-1.5">
               <Clock className="w-3 h-3" />
