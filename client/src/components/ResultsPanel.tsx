@@ -1,6 +1,7 @@
 import { Message } from "@shared/schema";
 import ResultsTable from "./ResultsTable";
 import EmptyState from "./EmptyState";
+import ChartView from "./ChartView";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -24,7 +25,7 @@ export default function ResultsPanel({ results, messages }: ResultsPanelProps) {
   const { toast } = useToast();
 
   const exportMutation = useMutation({
-    mutationFn: async ({ format, data }: { format: "xlsx" | "csv"; data: { columns: string[]; rows: Record<string, any>[] } }) => {
+    mutationFn: async ({ format, data }: { format: "xlsx" | "csv"; data: { columns: string[]; rows: Record<string, any>[]; sqlQuery?: string } }) => {
       const response = await fetch(`/api/export?format=${format}`, {
         method: "POST",
         headers: {
@@ -79,7 +80,8 @@ export default function ResultsPanel({ results, messages }: ResultsPanelProps) {
       format,
       data: {
         columns: results.columns,
-        rows: results.rows
+        rows: results.rows,
+        sqlQuery: results.sqlQuery
       }
     });
   };
@@ -129,7 +131,8 @@ export default function ResultsPanel({ results, messages }: ResultsPanelProps) {
         <SQLQueryDisplay query={results.sqlQuery} showCopy />
       </div>
 
-      <div className="flex-1 overflow-auto p-6">
+      <div className="flex-1 overflow-auto p-6 space-y-4">
+        <ChartView columns={results.columns} rows={results.rows} />
         <ResultsTable 
           columns={results.columns} 
           rows={results.rows} 

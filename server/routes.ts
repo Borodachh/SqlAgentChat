@@ -206,11 +206,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/export", async (req: Request, res: Response) => {
     try {
-      const { columns, rows, filename } = exportRequestSchema.parse(req.body);
+      const { columns, rows, filename, sqlQuery } = exportRequestSchema.parse(req.body);
       const format = req.query.format as string || "xlsx";
 
       if (format === "csv") {
         const csvRows: string[] = [];
+        
+        if (sqlQuery) {
+          csvRows.push(`"SQL запрос: ${sqlQuery.replace(/"/g, '""')}"`);
+          csvRows.push("");
+        }
         
         csvRows.push(columns.map(col => `"${col.replace(/"/g, '""')}"`).join(","));
         
@@ -236,22 +241,112 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const workbook = new ExcelJS.Workbook();
       const worksheet = workbook.addWorksheet("Query Results");
 
+      let dataStartRow = 1;
+
+      if (sqlQuery) {
+        const lastColLetter = worksheet.getColumn(Math.max(columns.length, 1)).letter;
+        worksheet.mergeCells(`A1:${lastColLetter}1`);
+        const queryCell = worksheet.getCell('A1');
+        queryCell.value = `SQL: ${sqlQuery}`;
+        queryCell.font = { italic: true, color: { argb: 'FF555555' } };
+        queryCell.alignment = { wrapText: true };
+        worksheet.getRow(1).height = 30;
+        dataStartRow = 3;
+      }
+
       worksheet.columns = columns.map(col => ({
         header: col,
         key: col,
         width: 20
       }));
 
-      worksheet.getRow(1).font = { bold: true };
-      worksheet.getRow(1).fill = {
-        type: 'pattern',
-        pattern: 'solid',
-        fgColor: { argb: 'FFE0E0E0' }
-      };
+      if (dataStartRow > 1) {
+        const headerRow = worksheet.getRow(dataStartRow);
+        columns.forEach((col, i) => {
+          headerRow.getCell(i + 1).value = col;
+        });
+        headerRow.font = { bold: true };
+        headerRow.fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: 'FFE0E0E0' }
+        };
 
-      rows.forEach(row => {
-        worksheet.addRow(row);
-      });
+        rows.forEach((row, idx) => {
+          const excelRow = worksheet.getRow(dataStartRow + 1 + idx);
+          columns.forEach((col, i) => {
+            excelRow.getCell(i + 1).value = row[col] ?? "";
+          });
+        });
+      } else {
+        worksheet.getRow(1).font = { bold: true };
+        worksheet.getRow(1).fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: 'FFE0E0E0' }
+        };
+
+        rows.forEach(row => {
+          worksheet.addRow(row);
+        });
+      }
+
+      const labelCandidates: string[] = [];
+      const numericCandidates: string[] = [];
+      const sampleRows = rows.slice(0, 20);
+
+      for (const col of columns) {
+        let numCount = 0;
+        let textCount = 0;
+        for (const row of sampleRows) {
+          const val = row[col];
+          if (val === null || val === undefined) continue;
+          if (typeof val === "number" || (!isNaN(Number(val)) && val !== "")) {
+            numCount++;
+          } else {
+            textCount++;
+          }
+        }
+        if (numCount > textCount && numCount > 0) {
+          numericCandidates.push(col);
+        } else {
+          labelCandidates.push(col);
+        }
+      }
+
+      const chartLabelCol = labelCandidates[0] || columns[0];
+      const chartValueCols = numericCandidates.filter(c => c !== chartLabelCol);
+
+      if (chartValueCols.length > 0 && columns.length <= 5 && rows.length >= 2) {
+        const chartSheet = workbook.addWorksheet("Chart Data");
+        
+        const chartCols = [chartLabelCol, ...chartValueCols];
+        chartSheet.columns = chartCols.map(col => ({
+          header: col,
+          key: col,
+          width: 18
+        }));
+
+        chartSheet.getRow(1).font = { bold: true };
+        chartSheet.getRow(1).fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: 'FF4472C4' }
+        };
+        chartSheet.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
+
+        rows.forEach(row => {
+          const chartRow: Record<string, any> = {};
+          chartCols.forEach(col => {
+            chartRow[col] = row[col] ?? "";
+          });
+          chartSheet.addRow(chartRow);
+        });
+
+        const noteRow = chartSheet.addRow([]);
+        const note2 = chartSheet.addRow(["Выделите данные и нажмите Вставка → Диаграмма для создания графика"]);
+        note2.getCell(1).font = { italic: true, color: { argb: 'FF888888' } };
+      }
 
       const finalFilename = filename || `query_results_${Date.now()}.xlsx`;
       

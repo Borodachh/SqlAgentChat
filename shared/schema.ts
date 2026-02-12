@@ -102,7 +102,8 @@ export const chatRequestSchema = z.object({
 export const exportRequestSchema = z.object({
   columns: z.array(z.string()),
   rows: z.array(z.record(z.any())),
-  filename: z.string().optional()
+  filename: z.string().optional(),
+  sqlQuery: z.string().optional()
 });
 
 export type ChatRequest = z.infer<typeof chatRequestSchema>;
