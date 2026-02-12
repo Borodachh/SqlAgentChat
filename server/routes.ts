@@ -81,6 +81,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/tables", async (req: Request, res: Response) => {
+    try {
+      const adapter = await getActiveAdapter();
+      const tables = await adapter.getTables();
+      res.json({ tables });
+    } catch (err: any) {
+      console.error("Error in /api/tables:", err);
+      res.status(500).json({ error: err.message || "Ошибка получения списка таблиц" });
+    }
+  });
+
   app.post("/api/chats/:chatId/chat", async (req: Request, res: Response) => {
     try {
       const { chatId } = req.params;

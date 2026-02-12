@@ -3,12 +3,125 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { Message, Chat } from "@shared/schema";
 import ChatPanel from "@/components/ChatPanel";
 import ResultsPanel from "@/components/ResultsPanel";
-import { Database, Plus, MessageSquare, Trash2 } from "lucide-react";
+import { Database, Plus, MessageSquare, Trash2, Table2, ChevronRight, ChevronDown, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Badge } from "@/components/ui/badge";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { cn } from "@/lib/utils";
+
+interface TableColumn {
+  name: string;
+  type: string;
+  nullable: boolean;
+}
+
+interface TableInfo {
+  name: string;
+  columns: TableColumn[];
+}
+
+function DatabaseTablesDialog() {
+  const [expandedTables, setExpandedTables] = useState<Set<string>>(new Set());
+
+  const { data: tablesData, isLoading, isError, error, refetch } = useQuery<{ tables: TableInfo[] }>({
+    queryKey: ['/api/tables'],
+    enabled: false,
+  });
+
+  const toggleTable = (tableName: string) => {
+    setExpandedTables(prev => {
+      const next = new Set(prev);
+      if (next.has(tableName)) {
+        next.delete(tableName);
+      } else {
+        next.add(tableName);
+      }
+      return next;
+    });
+  };
+
+  const tables = tablesData?.tables || [];
+
+  return (
+    <Dialog onOpenChange={(open) => { if (open) refetch(); }}>
+      <DialogTrigger asChild>
+        <Button
+          variant="outline"
+          size="icon"
+          data-testid="button-show-tables"
+        >
+          <Table2 className="w-4 h-4" />
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-md max-h-[80vh] flex flex-col">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Database className="w-5 h-5" />
+            Таблицы базы данных
+          </DialogTitle>
+        </DialogHeader>
+        <ScrollArea className="flex-1 pr-3">
+          {isLoading ? (
+            <div className="flex items-center justify-center py-8" data-testid="tables-loading">
+              <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : isError ? (
+            <div className="text-sm text-destructive py-4 text-center" data-testid="tables-error">
+              Ошибка загрузки: {(error as any)?.message || "Не удалось получить список таблиц"}
+            </div>
+          ) : tables.length === 0 ? (
+            <div className="text-sm text-muted-foreground py-4 text-center" data-testid="tables-empty">
+              Таблицы не найдены
+            </div>
+          ) : (
+            <div className="space-y-1" data-testid="tables-list">
+              {tables.map((table) => (
+                <div key={table.name}>
+                  <button
+                    onClick={() => toggleTable(table.name)}
+                    className="flex items-center gap-2 w-full p-2 rounded-md text-left hover-elevate"
+                    data-testid={`table-item-${table.name}`}
+                  >
+                    {expandedTables.has(table.name) ? (
+                      <ChevronDown className="w-4 h-4 flex-shrink-0 text-muted-foreground" />
+                    ) : (
+                      <ChevronRight className="w-4 h-4 flex-shrink-0 text-muted-foreground" />
+                    )}
+                    <Table2 className="w-4 h-4 flex-shrink-0 text-primary" />
+                    <span className="text-sm font-medium flex-1">{table.name}</span>
+                    <Badge variant="secondary" className="text-xs no-default-hover-elevate">
+                      {table.columns.length}
+                    </Badge>
+                  </button>
+                  {expandedTables.has(table.name) && (
+                    <div className="ml-10 mb-2 space-y-0.5" data-testid={`table-columns-${table.name}`}>
+                      {table.columns.map((col) => (
+                        <div
+                          key={col.name}
+                          className="flex items-center gap-2 py-1 px-2 text-xs"
+                          data-testid={`column-${table.name}-${col.name}`}
+                        >
+                          <span className="text-foreground font-mono">{col.name}</span>
+                          <span className="text-muted-foreground">{col.type}</span>
+                          {col.nullable && (
+                            <span className="text-muted-foreground/60 italic">null</span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </ScrollArea>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 export default function Home() {
   const [activeChatId, setActiveChatId] = useState<string | null>(null);
@@ -211,7 +324,7 @@ export default function Home() {
       </aside>
 
       <div className="flex flex-col flex-1 overflow-hidden">
-        <header className="flex items-center justify-between px-6 h-16 border-b bg-card">
+        <header className="flex items-center justify-between gap-2 px-6 h-16 border-b bg-card">
           <div className="flex items-center gap-3">
             <div className="flex items-center justify-center w-10 h-10 rounded-md bg-primary">
               <Database className="w-6 h-6 text-primary-foreground" />
@@ -221,6 +334,14 @@ export default function Home() {
               <p className="text-xs text-muted-foreground">Преобразование текста в SQL запросы</p>
             </div>
           </div>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div>
+                <DatabaseTablesDialog />
+              </div>
+            </TooltipTrigger>
+            <TooltipContent>Таблицы БД</TooltipContent>
+          </Tooltip>
         </header>
 
         <div className="flex flex-1 overflow-hidden">
