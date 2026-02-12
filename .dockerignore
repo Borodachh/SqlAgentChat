@@ -1,0 +1,16 @@
+node_modules
+dist
+.env
+.env.*
+*.log
+.git
+.gitignore
+.replit
+replit.nix
+.config
+.local
+.cache
+attached_assets
+exports
+*.md
+!README.md
