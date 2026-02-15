@@ -90,8 +90,12 @@ CUSTOM_LLM_MODEL=...
 ```env
 DATABASE_TYPE=postgresql|clickhouse
 
-# PostgreSQL
+# Системная БД (пользователи, чаты, сессии) — всегда DATABASE_URL
 DATABASE_URL=postgresql://...
+
+# Целевая БД для SQL-запросов (опционально, если не задано — используется DATABASE_URL)
+TARGET_DATABASE_URL=postgresql://...
+TARGET_PGDATABASE=mydb
 
 # ClickHouse
 CLICKHOUSE_URL=http://...

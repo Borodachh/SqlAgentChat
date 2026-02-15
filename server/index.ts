@@ -80,6 +80,8 @@ app.use((req, res, next) => {
   const config = getActiveConfig();
   log(`LLM Provider: ${config.llm.provider}, Model: ${config.llm.model}`);
   log(`Database Type: ${config.database.type}`);
+  const isTargetSeparate = !!process.env.TARGET_DATABASE_URL;
+  log(`Target DB: ${isTargetSeparate ? "separate (TARGET_DATABASE_URL)" : "same as system (DATABASE_URL)"}`);
 
   const server = await registerRoutes(app);
 

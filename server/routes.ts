@@ -172,9 +172,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/tables", requireAuth, async (req: Request, res: Response) => {
     try {
       const adapter = await getActiveAdapter();
-      const allTables = await adapter.getTables();
-      const hiddenTables = new Set(["users", "session"]);
-      const tables = allTables.filter((t: any) => !hiddenTables.has(t.name));
+      const tables = await adapter.getTables();
       res.json({ tables });
     } catch (err: any) {
       console.error("Error in /api/tables:", err);

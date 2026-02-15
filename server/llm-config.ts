@@ -80,8 +80,8 @@ export function getDatabaseConfig(): DatabaseConfig {
     default:
       return {
         type: "postgresql",
-        connectionUrl: getEnvWithDefault("DATABASE_URL", ""),
-        name: getEnvWithDefault("PGDATABASE", ""),
+        connectionUrl: getEnvWithDefault("TARGET_DATABASE_URL", "") || getEnvWithDefault("DATABASE_URL", ""),
+        name: getEnvWithDefault("TARGET_PGDATABASE", "") || getEnvWithDefault("PGDATABASE", ""),
       };
   }
 }
