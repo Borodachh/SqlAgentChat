@@ -169,6 +169,47 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/templates", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const templates = await storage.getTemplates(req.session.userId!);
+      res.json({ templates });
+    } catch (err: any) {
+      console.error("Error in GET /api/templates:", err);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post("/api/templates", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { name, sqlQuery, description } = req.body;
+      if (!name || !sqlQuery) {
+        return res.status(400).json({ error: "Название и SQL-запрос обязательны" });
+      }
+      const template = await storage.createTemplate(req.session.userId!, name, sqlQuery, description);
+      res.json(template);
+    } catch (err: any) {
+      console.error("Error in POST /api/templates:", err);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.delete("/api/templates/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Неверный ID" });
+      }
+      const deleted = await storage.deleteTemplate(id, req.session.userId!);
+      if (!deleted) {
+        return res.status(404).json({ error: "Шаблон не найден" });
+      }
+      res.json({ success: true });
+    } catch (err: any) {
+      console.error("Error in DELETE /api/templates:", err);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   app.get("/api/tables", requireAuth, async (req: Request, res: Response) => {
     try {
       const adapter = await getActiveAdapter();

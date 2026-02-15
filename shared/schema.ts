@@ -37,6 +37,15 @@ export const users = pgTable("users", {
   createdAt: bigint("created_at", { mode: "number" }).notNull()
 });
 
+export const sqlTemplates = pgTable("sql_templates", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  sqlQuery: text("sql_query").notNull(),
+  description: text("description"),
+  createdAt: bigint("created_at", { mode: "number" }).notNull()
+});
+
 export const chats = pgTable("chats", {
   id: text("id").primaryKey(),
   title: text("title").notNull(),
@@ -63,6 +72,7 @@ export const insertSaleSchema = createInsertSchema(sales).omit({ id: true });
 export const insertUserSchema = createInsertSchema(users).omit({ id: true });
 export const insertChatSchema = createInsertSchema(chats);
 export const insertMessageSchema = createInsertSchema(messages);
+export const insertSqlTemplateSchema = createInsertSchema(sqlTemplates).omit({ id: true });
 
 // Select types
 export type User = typeof users.$inferSelect;
@@ -70,6 +80,7 @@ export type Employee = typeof employees.$inferSelect;
 export type Product = typeof products.$inferSelect;
 export type Sale = typeof sales.$inferSelect;
 export type Chat = typeof chats.$inferSelect;
+export type SqlTemplate = typeof sqlTemplates.$inferSelect;
 
 export interface QueryResults {
   columns: string[];

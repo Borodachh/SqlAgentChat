@@ -12,11 +12,20 @@ interface ChatPanelProps {
   selectedMessageId: string | null;
   setSelectedMessageId: (id: string | null) => void;
   onMessageSelect: (message: Message) => void;
+  templateMessage?: string | null;
+  onTemplateMessageConsumed?: () => void;
 }
 
-export default function ChatPanel({ chatId, messages, setMessages, setCurrentResults, selectedMessageId, setSelectedMessageId, onMessageSelect }: ChatPanelProps) {
+export default function ChatPanel({ chatId, messages, setMessages, setCurrentResults, selectedMessageId, setSelectedMessageId, onMessageSelect, templateMessage, onTemplateMessageConsumed }: ChatPanelProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [suggestionToSend, setSuggestionToSend] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (templateMessage) {
+      setSuggestionToSend(templateMessage);
+      onTemplateMessageConsumed?.();
+    }
+  }, [templateMessage]);
 
   useEffect(() => {
     if (scrollRef.current) {

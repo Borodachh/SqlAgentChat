@@ -3,6 +3,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { Message, Chat } from "@shared/schema";
 import ChatPanel from "@/components/ChatPanel";
 import ResultsPanel from "@/components/ResultsPanel";
+import TemplatesDialog from "@/components/TemplatesDialog";
 import { useAuth } from "@/hooks/useAuth";
 import { Database, Plus, MessageSquare, Trash2, Table2, ChevronRight, ChevronDown, Loader2, LogOut, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -132,6 +133,7 @@ export default function Home() {
   const [sidebarExpanded, setSidebarExpanded] = useState(false);
   const [selectedMessageId, setSelectedMessageId] = useState<string | null>(null);
   const [chatToDelete, setChatToDelete] = useState<string | null>(null);
+  const [templateMessage, setTemplateMessage] = useState<string | null>(null);
   const [currentResults, setCurrentResults] = useState<{
     columns: string[];
     rows: Record<string, any>[];
@@ -394,6 +396,7 @@ export default function Home() {
                 <TooltipContent>Удалить чат</TooltipContent>
               </Tooltip>
             )}
+            <TemplatesDialog onUseTemplate={(sql) => setTemplateMessage(sql)} hasActiveChat={!!activeChatId} />
             <Tooltip>
               <TooltipTrigger asChild>
                 <div>
@@ -436,6 +439,8 @@ export default function Home() {
                 selectedMessageId={selectedMessageId}
                 setSelectedMessageId={setSelectedMessageId}
                 onMessageSelect={handleMessageSelect}
+                templateMessage={templateMessage}
+                onTemplateMessageConsumed={() => setTemplateMessage(null)}
               />
               
               <ResultsPanel 

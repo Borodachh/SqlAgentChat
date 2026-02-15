@@ -74,7 +74,7 @@ export class PostgreSQLAdapter extends BaseDatabaseAdapter {
       WHERE table_schema = 'public' 
         AND table_type = 'BASE TABLE'
         AND table_name NOT LIKE 'drizzle%'
-        AND table_name NOT IN ('chats', 'messages', 'session', 'users')
+        AND table_name NOT IN ('chats', 'messages', 'session', 'users', 'sql_templates')
       ORDER BY table_name
     `);
 

@@ -1,4 +1,4 @@
-import { type Message, type Chat, type User, messages, chats, users } from "@shared/schema";
+import { type Message, type Chat, type User, type SqlTemplate, messages, chats, users, sqlTemplates } from "@shared/schema";
 import { db } from "./db";
 import { asc, desc, eq, and } from "drizzle-orm";
 import bcrypt from "bcrypt";
@@ -16,6 +16,9 @@ export interface IStorage {
   addMessage(message: Message): Promise<void>;
   getMessages(chatId: string): Promise<Message[]>;
   clearMessages(chatId: string): Promise<void>;
+  getTemplates(userId: number): Promise<SqlTemplate[]>;
+  createTemplate(userId: number, name: string, sqlQuery: string, description?: string): Promise<SqlTemplate>;
+  deleteTemplate(id: number, userId: number): Promise<boolean>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -125,6 +128,33 @@ export class DatabaseStorage implements IStorage {
 
   async clearMessages(chatId: string): Promise<void> {
     await db.delete(messages).where(eq(messages.chatId, chatId));
+  }
+
+  async getTemplates(userId: number): Promise<SqlTemplate[]> {
+    const rows = await db.select().from(sqlTemplates)
+      .where(eq(sqlTemplates.userId, userId))
+      .orderBy(desc(sqlTemplates.createdAt));
+    return rows.map(row => ({
+      ...row,
+      createdAt: Number(row.createdAt)
+    }));
+  }
+
+  async createTemplate(userId: number, name: string, sqlQuery: string, description?: string): Promise<SqlTemplate> {
+    const [template] = await db.insert(sqlTemplates).values({
+      userId,
+      name,
+      sqlQuery,
+      description: description || null,
+      createdAt: Date.now()
+    }).returning();
+    return { ...template, createdAt: Number(template.createdAt) };
+  }
+
+  async deleteTemplate(id: number, userId: number): Promise<boolean> {
+    const result = await db.delete(sqlTemplates)
+      .where(and(eq(sqlTemplates.id, id), eq(sqlTemplates.userId, userId)));
+    return (result.rowCount ?? 0) > 0;
   }
 }
 

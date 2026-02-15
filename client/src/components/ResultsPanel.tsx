@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Message } from "@shared/schema";
 import ResultsTable from "./ResultsTable";
 import EmptyState from "./EmptyState";
@@ -5,10 +6,20 @@ import ChartView from "./ChartView";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Download, Clock, Table as TableIcon, FileSpreadsheet, FileText, Send } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Download, Clock, Table as TableIcon, FileSpreadsheet, FileText, Send, Bookmark } from "lucide-react";
 import { useMutation } from "@tanstack/react-query";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import SQLQueryDisplay from "./SQLQueryDisplay";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -29,6 +40,24 @@ interface ResultsPanelProps {
 
 export default function ResultsPanel({ results, messages }: ResultsPanelProps) {
   const { toast } = useToast();
+  const [saveDialogOpen, setSaveDialogOpen] = useState(false);
+  const [templateName, setTemplateName] = useState("");
+
+  const saveTemplateMutation = useMutation({
+    mutationFn: async ({ name, sqlQuery }: { name: string; sqlQuery: string }) => {
+      const response = await apiRequest("POST", "/api/templates", { name, sqlQuery });
+      return await response.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Шаблон сохранён" });
+      setSaveDialogOpen(false);
+      setTemplateName("");
+      queryClient.invalidateQueries({ queryKey: ['/api/templates'] });
+    },
+    onError: (error: any) => {
+      toast({ title: "Ошибка", description: error.message, variant: "destructive" });
+    }
+  });
 
   const exportMutation = useMutation({
     mutationFn: async ({ format, data }: { format: "xlsx" | "csv"; data: { columns: string[]; rows: Record<string, any>[]; sqlQuery?: string } }) => {
@@ -194,6 +223,15 @@ export default function ResultsPanel({ results, messages }: ResultsPanelProps) {
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
+            <Button
+              variant="outline"
+              className="gap-2"
+              onClick={() => setSaveDialogOpen(true)}
+              data-testid="button-save-template"
+            >
+              <Bookmark className="w-4 h-4" />
+              Шаблон
+            </Button>
           </div>
         </div>
 
@@ -207,6 +245,43 @@ export default function ResultsPanel({ results, messages }: ResultsPanelProps) {
           rows={results.rows} 
         />
       </div>
+
+      <Dialog open={saveDialogOpen} onOpenChange={setSaveDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Сохранить как шаблон</DialogTitle>
+            <DialogDescription>Дайте название SQL-запросу для повторного использования</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <Input
+              value={templateName}
+              onChange={(e) => setTemplateName(e.target.value)}
+              placeholder="Название шаблона, например: Ежедневная выручка"
+              data-testid="input-template-name"
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && templateName.trim()) {
+                  saveTemplateMutation.mutate({ name: templateName.trim(), sqlQuery: results.sqlQuery });
+                }
+              }}
+            />
+            <div className="text-xs text-muted-foreground p-3 rounded-md bg-muted/50 font-mono break-all">
+              {results.sqlQuery}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSaveDialogOpen(false)} data-testid="button-cancel-template">
+              Отмена
+            </Button>
+            <Button
+              onClick={() => saveTemplateMutation.mutate({ name: templateName.trim(), sqlQuery: results.sqlQuery })}
+              disabled={!templateName.trim() || saveTemplateMutation.isPending}
+              data-testid="button-confirm-save-template"
+            >
+              Сохранить
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
