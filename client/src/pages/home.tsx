@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { cn } from "@/lib/utils";
@@ -128,6 +129,7 @@ export default function Home() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [sidebarExpanded, setSidebarExpanded] = useState(false);
   const [selectedMessageId, setSelectedMessageId] = useState<string | null>(null);
+  const [chatToDelete, setChatToDelete] = useState<string | null>(null);
   const [currentResults, setCurrentResults] = useState<{
     columns: string[];
     rows: Record<string, any>[];
@@ -244,7 +246,14 @@ export default function Home() {
 
   const handleDeleteChat = (e: React.MouseEvent, chatId: string) => {
     e.stopPropagation();
-    deleteChatMutation.mutate(chatId);
+    setChatToDelete(chatId);
+  };
+
+  const confirmDeleteChat = () => {
+    if (chatToDelete) {
+      deleteChatMutation.mutate(chatToDelete);
+      setChatToDelete(null);
+    }
   };
 
   const chats = chatsData?.chats || [];
@@ -319,7 +328,7 @@ export default function Home() {
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="w-6 h-6 opacity-0 group-hover:opacity-100 transition-opacity"
+                      className="flex-shrink-0 opacity-50 hover:opacity-100 transition-opacity"
                       onClick={(e) => handleDeleteChat(e, chat.id)}
                       data-testid={`button-delete-chat-${chat.id}`}
                     >
@@ -404,6 +413,28 @@ export default function Home() {
           )}
         </div>
       </div>
+
+      <AlertDialog open={!!chatToDelete} onOpenChange={(open) => !open && setChatToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Удалить чат?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Это действие нельзя отменить. Вся история сообщений этого чата будет удалена.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="button-cancel-delete">Отмена</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDeleteChat}
+              className="bg-destructive text-destructive-foreground"
+              disabled={deleteChatMutation.isPending}
+              data-testid="button-confirm-delete"
+            >
+              Удалить
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
