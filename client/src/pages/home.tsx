@@ -144,6 +144,8 @@ export default function Home() {
     refetchOnWindowFocus: false
   });
 
+  const chats = chatsData?.chats || [];
+
   const { data: messagesData } = useQuery<{ messages: Message[] }>({
     queryKey: ['/api/chats', activeChatId, 'messages'],
     enabled: !!activeChatId,
@@ -168,15 +170,20 @@ export default function Home() {
   const deleteChatMutation = useMutation({
     mutationFn: async (chatId: string) => {
       await apiRequest("DELETE", `/api/chats/${chatId}`);
+      return chatId;
     },
-    onSuccess: (_, deletedChatId) => {
-      queryClient.invalidateQueries({ queryKey: ['/api/chats'] });
+    onSuccess: (deletedChatId) => {
+      const remaining = chats.filter(c => c.id !== deletedChatId);
+      queryClient.setQueryData(['/api/chats'], { chats: remaining });
+
       if (activeChatId === deletedChatId) {
-        setActiveChatId(null);
+        setActiveChatId(remaining.length > 0 ? remaining[0].id : null);
         setMessages([]);
         setCurrentResults(null);
         setSelectedMessageId(null);
       }
+
+      queryClient.invalidateQueries({ queryKey: ['/api/chats'] });
     }
   });
 
@@ -255,8 +262,6 @@ export default function Home() {
       setChatToDelete(null);
     }
   };
-
-  const chats = chatsData?.chats || [];
 
   return (
     <div className="flex h-screen bg-background">
@@ -371,14 +376,31 @@ export default function Home() {
               <p className="text-xs text-muted-foreground">Преобразование текста в SQL запросы</p>
             </div>
           </div>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <div>
-                <DatabaseTablesDialog />
-              </div>
-            </TooltipTrigger>
-            <TooltipContent>Таблицы БД</TooltipContent>
-          </Tooltip>
+          <div className="flex items-center gap-1">
+            {activeChatId && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={(e) => handleDeleteChat(e, activeChatId)}
+                    data-testid="button-delete-active-chat"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Удалить чат</TooltipContent>
+              </Tooltip>
+            )}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div>
+                  <DatabaseTablesDialog />
+                </div>
+              </TooltipTrigger>
+              <TooltipContent>Таблицы БД</TooltipContent>
+            </Tooltip>
+          </div>
         </header>
 
         <div className="flex flex-1 overflow-hidden">
