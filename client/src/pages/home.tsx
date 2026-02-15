@@ -127,6 +127,7 @@ export default function Home() {
   const [activeChatId, setActiveChatId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [sidebarExpanded, setSidebarExpanded] = useState(false);
+  const [selectedMessageId, setSelectedMessageId] = useState<string | null>(null);
   const [currentResults, setCurrentResults] = useState<{
     columns: string[];
     rows: Record<string, any>[];
@@ -158,6 +159,7 @@ export default function Home() {
       setActiveChatId(newChat.id);
       setMessages([]);
       setCurrentResults(null);
+      setSelectedMessageId(null);
     }
   });
 
@@ -171,6 +173,7 @@ export default function Home() {
         setActiveChatId(null);
         setMessages([]);
         setCurrentResults(null);
+        setSelectedMessageId(null);
       }
     }
   });
@@ -185,20 +188,31 @@ export default function Home() {
     if (messagesData?.messages) {
       setMessages(messagesData.messages);
       
-      const lastMessageWithResults = [...messagesData.messages]
-        .reverse()
-        .find(m => m.queryResults);
+      if (selectedMessageId) {
+        const selectedExists = messagesData.messages.find(m => m.id === selectedMessageId);
+        if (!selectedExists) {
+          setSelectedMessageId(null);
+          setCurrentResults(null);
+        }
+      }
       
-      if (lastMessageWithResults?.queryResults) {
-        setCurrentResults({
-          columns: lastMessageWithResults.queryResults.columns,
-          rows: lastMessageWithResults.queryResults.rows,
-          rowCount: lastMessageWithResults.queryResults.rowCount,
-          executionTime: lastMessageWithResults.queryResults.executionTime,
-          sqlQuery: lastMessageWithResults.sqlQuery || ""
-        });
-      } else {
-        setCurrentResults(null);
+      if (!selectedMessageId) {
+        const lastMessageWithResults = [...messagesData.messages]
+          .reverse()
+          .find(m => m.queryResults);
+        
+        if (lastMessageWithResults?.queryResults) {
+          setSelectedMessageId(lastMessageWithResults.id);
+          setCurrentResults({
+            columns: lastMessageWithResults.queryResults.columns,
+            rows: lastMessageWithResults.queryResults.rows,
+            rowCount: lastMessageWithResults.queryResults.rowCount,
+            executionTime: lastMessageWithResults.queryResults.executionTime,
+            sqlQuery: lastMessageWithResults.sqlQuery || ""
+          });
+        } else {
+          setCurrentResults(null);
+        }
       }
     }
   }, [messagesData]);
@@ -211,6 +225,20 @@ export default function Home() {
     if (chatId !== activeChatId) {
       setActiveChatId(chatId);
       setCurrentResults(null);
+      setSelectedMessageId(null);
+    }
+  };
+
+  const handleMessageSelect = (message: Message) => {
+    if (message.queryResults) {
+      setSelectedMessageId(message.id);
+      setCurrentResults({
+        columns: message.queryResults.columns,
+        rows: message.queryResults.rows,
+        rowCount: message.queryResults.rowCount,
+        executionTime: message.queryResults.executionTime,
+        sqlQuery: message.sqlQuery || ""
+      });
     }
   };
 
@@ -352,6 +380,9 @@ export default function Home() {
                 messages={messages} 
                 setMessages={setMessages}
                 setCurrentResults={setCurrentResults}
+                selectedMessageId={selectedMessageId}
+                setSelectedMessageId={setSelectedMessageId}
+                onMessageSelect={handleMessageSelect}
               />
               
               <ResultsPanel 

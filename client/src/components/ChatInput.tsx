@@ -12,9 +12,10 @@ interface ChatInputProps {
   messages: Message[];
   setMessages: Dispatch<SetStateAction<Message[]>>;
   setCurrentResults: (results: any) => void;
+  setSelectedMessageId: (id: string | null) => void;
 }
 
-export default function ChatInput({ chatId, messages, setMessages, setCurrentResults }: ChatInputProps) {
+export default function ChatInput({ chatId, messages, setMessages, setCurrentResults, setSelectedMessageId }: ChatInputProps) {
   const [input, setInput] = useState("");
   const { toast } = useToast();
   const pendingIdRef = useRef<string>("");
@@ -31,6 +32,7 @@ export default function ChatInput({ chatId, messages, setMessages, setCurrentRes
       });
 
       if (assistantMessage.queryResults) {
+        setSelectedMessageId(assistantMessage.id);
         setCurrentResults({
           columns: assistantMessage.queryResults.columns,
           rows: assistantMessage.queryResults.rows,

@@ -1,15 +1,24 @@
 import { Message } from "@shared/schema";
-import { User, Bot, AlertCircle } from "lucide-react";
+import { User, Bot, AlertCircle, Table2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface MessageBubbleProps {
   message: Message;
+  isSelected?: boolean;
+  onSelect?: (message: Message) => void;
 }
 
-export default function MessageBubble({ message }: MessageBubbleProps) {
+export default function MessageBubble({ message, isSelected, onSelect }: MessageBubbleProps) {
   const isUser = message.role === "user";
   const isError = !!message.error;
   const isPending = message.id?.includes('pending') || false;
+  const hasResults = !isUser && !!message.queryResults;
+
+  const handleClick = () => {
+    if (hasResults && onSelect) {
+      onSelect(message);
+    }
+  };
 
   return (
     <div
@@ -32,6 +41,7 @@ export default function MessageBubble({ message }: MessageBubbleProps) {
         )}
       >
         <div
+          onClick={handleClick}
           className={cn(
             "px-4 py-3 rounded-2xl text-sm",
             isUser 
@@ -40,7 +50,10 @@ export default function MessageBubble({ message }: MessageBubbleProps) {
                 ? "bg-destructive/10 text-destructive border border-destructive/20"
                 : isPending
                   ? "bg-muted text-muted-foreground animate-pulse"
-                  : "bg-muted text-foreground"
+                  : isSelected
+                    ? "bg-accent text-accent-foreground ring-2 ring-primary"
+                    : "bg-muted text-foreground",
+            hasResults && "cursor-pointer hover-elevate"
           )}
         >
           {isError && (
@@ -50,6 +63,12 @@ export default function MessageBubble({ message }: MessageBubbleProps) {
             </div>
           )}
           <p className="whitespace-pre-wrap break-words">{message.content}</p>
+          {hasResults && (
+            <div className="flex items-center gap-1.5 mt-2 text-xs opacity-70">
+              <Table2 className="w-3 h-3" />
+              <span>{message.queryResults!.rowCount} rows</span>
+            </div>
+          )}
         </div>
 
         <span className="text-xs text-muted-foreground px-2">

@@ -9,9 +9,12 @@ interface ChatPanelProps {
   messages: Message[];
   setMessages: Dispatch<SetStateAction<Message[]>>;
   setCurrentResults: (results: any) => void;
+  selectedMessageId: string | null;
+  setSelectedMessageId: (id: string | null) => void;
+  onMessageSelect: (message: Message) => void;
 }
 
-export default function ChatPanel({ chatId, messages, setMessages, setCurrentResults }: ChatPanelProps) {
+export default function ChatPanel({ chatId, messages, setMessages, setCurrentResults, selectedMessageId, setSelectedMessageId, onMessageSelect }: ChatPanelProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -53,7 +56,12 @@ export default function ChatPanel({ chatId, messages, setMessages, setCurrentRes
             </div>
           ) : (
             messages.map((message) => (
-              <MessageBubble key={message.id} message={message} />
+              <MessageBubble
+                key={message.id}
+                message={message}
+                isSelected={message.id === selectedMessageId}
+                onSelect={onMessageSelect}
+              />
             ))
           )}
         </div>
@@ -65,6 +73,7 @@ export default function ChatPanel({ chatId, messages, setMessages, setCurrentRes
           messages={messages} 
           setMessages={setMessages}
           setCurrentResults={setCurrentResults}
+          setSelectedMessageId={setSelectedMessageId}
         />
       </div>
     </div>
