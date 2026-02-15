@@ -1,49 +1,42 @@
 # AI SQL Chat Bot
 
 ## Обзор проекта
-Веб-приложение чат-бота с AI агентом для преобразования текстовых запросов на естественном языке в SQL запросы. Поддержка множества LLM провайдеров и баз данных с экспортом результатов в Excel и CSV.
+Веб-приложение с AI-агентом для преобразования запросов на естественном языке в SQL. Поддержка множества LLM-провайдеров и типов баз данных, экспорт в Excel/CSV с LLM-генерируемыми заголовками на русском, отправка отчётов в Telegram.
 
 ## Текущее состояние
 Дата: 15 февраля 2026
-- ✅ Multi-LLM Support: OpenAI, Ollama, Custom API
-- ✅ Multi-Database Support: PostgreSQL, ClickHouse
+- ✅ Multi-LLM: OpenAI, Ollama, Custom API
+- ✅ Multi-Database: PostgreSQL, ClickHouse
 - ✅ Type-aware SQL generation
-- ✅ Export: Excel (.xlsx) с SQL-заголовком и листом Chart Data, CSV
-- ✅ Визуализация: Chart.js (столбчатая/линейная диаграмма)
-- ✅ Персистентная история сообщений
+- ✅ Экспорт: Excel (.xlsx) и CSV с LLM-заголовком на русском и датой
+- ✅ Визуализация: Chart.js (столбчатая/линейная)
 - ✅ Множественные чаты с историей
-- ✅ Предупреждения при опасных SQL-командах (вместо ошибок)
-- ✅ Telegram интеграция: отправка Excel/CSV отчётов в Telegram с именем пользователя
+- ✅ Шаблоны SQL-запросов (сохранение/повторное использование)
+- ✅ Telegram: отчёты с описанием на русском (через LLM)
 - ✅ Мультипользовательский режим: регистрация/логин, изоляция чатов
+- ✅ Разделение системной и целевой БД
+- ✅ Просмотр схемы целевой БД
+- ✅ Docker + docker-compose для self-hosting
 - **Статус: PRODUCTION READY**
 
-## Новые возможности (v2.0)
+## Ключевые функции
 
-### Множественные чаты
-- Создание новых чатов через кнопку "+"
-- История чатов в сворачиваемой боковой панели
-- Автоматическое название чата из первого сообщения
-- Удаление чатов с каскадным удалением сообщений
-- Сворачиваемый сайдбар с иконками (разворачивается при наведении)
+### LLM-генерируемые заголовки (generateSQLTitle)
+- Функция в server/llm-service.ts генерирует краткое описание SQL-запроса на русском
+- Используется в Excel/CSV экспорте (строка 1: заголовок, строка 2: дата)
+- Используется в Telegram caption вместо сырого SQL
+- Fallback: "Отчёт" если LLM недоступен
 
-### Multi-LLM Support
-- **OpenAI API**: GPT-4, GPT-5 через официальный API или Replit AI Integrations
-- **Ollama**: Локальные модели (Llama, Mistral, CodeLlama и др.)
-- **Custom API**: Любой OpenAI-совместимый сервер
+### Шаблоны SQL-запросов
+- Таблица templates в shared/schema.ts (userId, name, description, sqlQuery)
+- CRUD: GET/POST/DELETE /api/templates
+- Диалог TemplatesDialog.tsx для управления шаблонами
+- Кнопка сохранения в ResultsPanel.tsx
 
-### Multi-Database Support
-- **PostgreSQL**: Neon Serverless с connection pooling
-- **ClickHouse**: HTTP API с оптимизированными запросами
-
-### Type-Aware SQL Generation
-- Автоматическое определение типа БД
-- Оптимизированные подсказки для каждого диалекта
-- PostgreSQL: CURRENT_DATE, INTERVAL, LOWER()
-- ClickHouse: today(), sumIf(), lower()
-
-### Export
-- Excel (.xlsx) с форматированием заголовков
-- CSV с UTF-8 BOM для корректной кодировки
+### Экспорт
+- Excel: строка 1 — LLM-заголовок (merged, centered, bold 14pt), строка 2 — дата, строка 4+ — данные
+- CSV: строка 1 — заголовок, строка 2 — дата, строка 3 — пустая, строка 4+ — данные
+- Telegram: файл + caption (username + заголовок + кол-во строк)
 
 ## Архитектура
 
@@ -54,14 +47,14 @@ DATABASE_TYPE: "postgresql" | "clickhouse"
 ```
 
 ### Database Adapters (server/database-adapters/)
-- `base-adapter.ts` - интерфейс DatabaseAdapter
-- `postgresql-adapter.ts` - Neon PostgreSQL
-- `clickhouse-adapter.ts` - ClickHouse HTTP
+- `base-adapter.ts` — интерфейс DatabaseAdapter
+- `postgresql-adapter.ts` — Neon PostgreSQL
+- `clickhouse-adapter.ts` — ClickHouse HTTP
 
 ### LLM Service (server/llm-service.ts)
-- Универсальный сервис для всех провайдеров
-- OpenAI SDK для совместимости
-- Type-aware system prompts
+- generateSQL() — генерация SQL из текста
+- generateSQLTitle() — генерация описания SQL на русском
+- OpenAI SDK для совместимости со всеми провайдерами
 
 ## Конфигурация через ENV
 
@@ -90,10 +83,10 @@ CUSTOM_LLM_MODEL=...
 ```env
 DATABASE_TYPE=postgresql|clickhouse
 
-# Системная БД (пользователи, чаты, сессии) — всегда DATABASE_URL
+# Системная БД (пользователи, чаты, сессии)
 DATABASE_URL=postgresql://...
 
-# Целевая БД для SQL-запросов (опционально, если не задано — используется DATABASE_URL)
+# Целевая БД для SQL-запросов (опционально)
 TARGET_DATABASE_URL=postgresql://...
 TARGET_PGDATABASE=mydb
 
@@ -104,66 +97,87 @@ CLICKHOUSE_DATABASE=default
 
 ## API Endpoints
 
+### Авторизация
+- **POST /api/register** — регистрация
+- **POST /api/login** — вход
+- **POST /api/logout** — выход
+- **GET /api/user** — текущий пользователь
+
 ### Чаты
-- **GET /api/chats** - Список всех чатов
-- **POST /api/chats** - Создание нового чата
-- **DELETE /api/chats/:chatId** - Удаление чата
+- **GET /api/chats** — список чатов
+- **POST /api/chats** — создание чата
+- **DELETE /api/chats/:chatId** — удаление чата
 
 ### Сообщения
-- **GET /api/chats/:chatId/messages** - История сообщений чата
-- **POST /api/chats/:chatId/chat** - Отправка сообщения → SQL → результаты
+- **GET /api/chats/:chatId/messages** — история
+- **POST /api/chats/:chatId/chat** — запрос → SQL → результат
 
-### Прочее
-- **GET /api/config** - Текущая конфигурация LLM и БД
-- **POST /api/export?format=xlsx|csv** - Экспорт результатов
-- **POST /api/send-telegram** - Отправка Excel/CSV в Telegram (format: xlsx|csv)
+### Шаблоны
+- **GET /api/templates** — список шаблонов
+- **POST /api/templates** — сохранить шаблон
+- **DELETE /api/templates/:id** — удалить шаблон
+
+### Экспорт
+- **POST /api/export?format=xlsx|csv** — скачать Excel/CSV
+- **POST /api/send-telegram** — отправить в Telegram (format: xlsx|csv)
+- **GET /api/config** — конфигурация
+- **GET /api/tables** — таблицы целевой БД
 
 ## Файловая структура
 ```
 server/
+  index.ts               # Express, graceful shutdown
+  routes.ts              # API endpoints
+  storage.ts             # Drizzle storage
+  db.ts                  # Drizzle ORM
+  seed.ts                # Тестовые данные (50K employees, 50K products, 200K sales)
   llm-config.ts          # Конфигурация провайдеров
-  llm-service.ts         # Универсальный LLM сервис
+  llm-service.ts         # SQL генерация + заголовки
+  vite.ts                # Vite dev middleware
   database-adapters/
-    base-adapter.ts      # Интерфейс адаптера
+    base-adapter.ts      # Интерфейс
     postgresql-adapter.ts
     clickhouse-adapter.ts
-    index.ts             # Фабрика адаптеров
-  routes.ts              # API endpoints
-  storage.ts             # Drizzle storage для сообщений
-  db.ts                  # Drizzle ORM подключение
-  seed.ts                # Инициализация данных
+    index.ts             # Фабрика
 
 client/src/
+  App.tsx                # Роутинг, layout
+  pages/
+    home.tsx             # Сайдбар + чат + результаты
+    auth.tsx             # Логин/регистрация
+    not-found.tsx
   components/
-    ResultsPanel.tsx     # Excel + CSV export + Telegram кнопки
-    ...
+    ChatPanel.tsx        # Чат с сообщениями
+    ChatInput.tsx        # Поле ввода
+    MessageBubble.tsx    # Сообщение
+    ResultsPanel.tsx     # Таблица + экспорт + шаблоны + TG
+    ResultsTable.tsx     # Таблица данных
+    ChartView.tsx        # Диаграммы
+    EmptyState.tsx       # Пустое состояние
+    SQLQueryDisplay.tsx  # SQL-запрос
+    TemplatesDialog.tsx  # Шаблоны
+  hooks/
+    useAuth.ts           # Авторизация
+    use-toast.ts         # Уведомления
+  lib/
+    queryClient.ts       # React Query
+    utils.ts
+
+shared/
+  schema.ts              # users, chats, messages, templates + Zod
 ```
 
 ## Безопасность SQL
-- Только SELECT и WITH запросы
+- Только SELECT и WITH
 - Блокировка: DROP, DELETE, INSERT, UPDATE, ALTER, CREATE, TRUNCATE
 - Удаление комментариев
 - Валидация до выполнения
 
-## Telegram интеграция
-- Отправка Excel/CSV отчётов в Telegram через Bot API
-- Настройка: TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID
-- Кнопки "TG Excel" и "TG CSV" в панели результатов
-- Файл отправляется как документ с SQL-запросом в caption
-
 ## Зависимости
-- openai - универсальный SDK для всех LLM
-- @neondatabase/serverless - PostgreSQL
-- drizzle-orm - ORM для сообщений
-- exceljs - Excel генерация
-- p-retry - retry с backoff
-
-## Готовность к Production
-✅ Multi-LLM поддержка
-✅ Multi-Database поддержка
-✅ Type-aware SQL generation
-✅ Excel + CSV export
-✅ Telegram интеграция
-✅ Graceful shutdown
-✅ Error handling
-✅ Security validation
+- openai — универсальный SDK для всех LLM
+- @neondatabase/serverless — PostgreSQL
+- drizzle-orm — ORM
+- exceljs — Excel
+- bcrypt — хеширование паролей
+- connect-pg-simple — сессии в PostgreSQL
+- chart.js + react-chartjs-2 — визуализация

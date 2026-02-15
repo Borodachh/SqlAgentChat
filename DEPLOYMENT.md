@@ -1,243 +1,210 @@
-# Инструкция по деплою AI SQL Chat Bot
+# Развёртывание AI SQL Chat Bot
 
-Это руководство описывает развёртывание приложения на собственном сервере с PostgreSQL.
+## Требования
+
+- Node.js 20+ (для ручной установки)
+- PostgreSQL 14+ (системная БД)
+- Docker 20+ и Docker Compose 2.0+ (для Docker-установки)
+- Доступ к LLM API (OpenAI / Ollama / Custom)
 
 ---
 
-## Способ 1: Docker (рекомендуется)
+## Способ 1: Docker Compose (рекомендуется)
 
-Самый простой и быстрый способ. Требуется только Docker и Docker Compose.
+### 1.1 Получение кода
 
-### 1.1 Требования
-
-- **Docker** 20+
-- **Docker Compose** 2.0+
-
-Установка Docker (Ubuntu):
 ```bash
-curl -fsSL https://get.docker.com | sh
-sudo usermod -aG docker $USER
-# Перелогиньтесь для применения изменений
-```
-
-### 1.2 Получение исходного кода
-
-**Вариант A: Скачать из Replit**
-1. Откройте проект в Replit
-2. Нажмите на три точки (меню) → "Download as zip"
-3. Распакуйте архив на сервере
-
-**Вариант B: Git clone**
-```bash
-git clone https://github.com/your-username/ai-sql-chatbot.git
+git clone <repo-url>
 cd ai-sql-chatbot
 ```
 
-### 1.3 Настройка переменных окружения
+### 1.2 Настройка
 
 ```bash
-# Скопируйте шаблон
 cp .env.example .env
-
-# Отредактируйте файл
 nano .env
 ```
 
-Обязательные параметры в `.env`:
-```bash
-# PostgreSQL (для Docker)
+Минимальная конфигурация:
+
+```env
+# PostgreSQL (создаётся автоматически)
 POSTGRES_USER=sqlchat
-POSTGRES_PASSWORD=your_secure_password_here
+POSTGRES_PASSWORD=your_secure_password
 POSTGRES_DB=sqlchat_db
 
-# LLM Provider (OpenAI/Ollama/Custom)
-LLM_PROVIDER=openai
-AI_INTEGRATIONS_OPENAI_API_KEY=sk-your-openai-api-key
-AI_INTEGRATIONS_OPENAI_BASE_URL=https://api.openai.com/v1
-OPENAI_MODEL=gpt-4
+# Сессии
+SESSION_SECRET=your-random-secret-change-me
 
-# Безопасность
-SESSION_SECRET=your-random-secret-string
+# LLM
+LLM_PROVIDER=openai
+AI_INTEGRATIONS_OPENAI_API_KEY=sk-your-key
+AI_INTEGRATIONS_OPENAI_BASE_URL=https://api.openai.com/v1
+OPENAI_MODEL=gpt-4o
+
+# Целевая БД для запросов (опционально, если отличается от системной)
+# TARGET_DATABASE_URL=postgresql://user:pass@host/analyticsdb
+
+# Telegram (опционально)
+# TELEGRAM_BOT_TOKEN=123456:ABC-DEF
+# TELEGRAM_CHAT_ID=-1001234567890
 ```
 
-Полный список параметров — в файле `.env.example`.
-
-### 1.4 Сборка и запуск
+### 1.3 Запуск
 
 ```bash
-# Сборка образа и запуск контейнеров
 docker compose up -d --build
-
-# Проверка статуса
-docker compose ps
-
-# Просмотр логов
-docker compose logs -f app
 ```
 
 Приложение автоматически:
 - Создаст PostgreSQL базу данных
 - Дождётся готовности БД (healthcheck)
-- Применит миграции (создаст таблицы)
+- Применит миграции
 - Запустит сервер на порте 5000
 
-### 1.5 Проверка
+### 1.4 Проверка
 
 ```bash
-# API статус
+# Логи
+docker compose logs -f app
+
+# API
 curl http://localhost:5000/api/config
 
-# Веб-интерфейс
-# Откройте http://your-server-ip:5000 в браузере
+# Веб-интерфейс: http://your-server:5000
 ```
 
-### 1.6 Загрузка тестовых данных (опционально)
+### 1.5 Управление
+
+```bash
+docker compose down              # Остановка
+docker compose down -v           # Остановка + удаление данных
+docker compose restart app       # Перезапуск
+docker compose logs -f app       # Логи приложения
+docker compose logs -f db        # Логи БД
+```
+
+### 1.6 Загрузка тестовых данных
 
 ```bash
 docker compose exec app npx tsx server/seed.ts
 ```
 
-### 1.7 Управление
+### 1.7 Обновление
 
 ```bash
-# Остановка
-docker compose down
-
-# Остановка с удалением данных БД
-docker compose down -v
-
-# Перезапуск
-docker compose restart app
-
-# Обновление (после git pull)
+git pull
 docker compose up -d --build
-
-# Логи
-docker compose logs -f app
-docker compose logs -f db
 ```
 
-### 1.8 Бэкап базы данных (Docker)
+### 1.8 Бэкап БД
 
 ```bash
-# Создание бэкапа
+# Создание
 docker compose exec db pg_dump -U sqlchat sqlchat_db > backup_$(date +%Y%m%d).sql
 
-# Восстановление из бэкапа
-cat backup_20260212.sql | docker compose exec -T db psql -U sqlchat sqlchat_db
+# Восстановление
+cat backup.sql | docker compose exec -T db psql -U sqlchat sqlchat_db
 ```
 
 ---
 
-## Способ 2: Ручная установка
+## Способ 2: Docker (без Compose, с внешней БД)
 
-Подходит для серверов без Docker.
+```bash
+docker build -t ai-sql-chatbot .
 
-### 2.1 Требования
+docker run -d \
+  --name ai-sql-chatbot \
+  -p 5000:5000 \
+  -e DATABASE_URL=postgresql://user:pass@host/db \
+  -e SESSION_SECRET=your-secret \
+  -e LLM_PROVIDER=openai \
+  -e OPENAI_MODEL=gpt-4o \
+  -e AI_INTEGRATIONS_OPENAI_API_KEY=sk-your-key \
+  -e AI_INTEGRATIONS_OPENAI_BASE_URL=https://api.openai.com/v1 \
+  ai-sql-chatbot
+```
 
-- **Node.js** 18+ (рекомендуется 20 LTS)
-- **PostgreSQL** 14+
-- **npm** 9+
-- Доступ к OpenAI API (или Ollama для локальных моделей)
+---
 
-### 2.2 Установка Node.js (Ubuntu/Debian)
+## Способ 3: Ручная установка (VPS)
+
+### 3.1 Node.js
 
 ```bash
 curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
 sudo apt-get install -y nodejs
-
-node --version  # v20.x.x
-npm --version   # 9.x.x+
 ```
 
-### 2.3 Установка PostgreSQL
+### 3.2 PostgreSQL
 
 ```bash
-sudo apt update
 sudo apt install postgresql postgresql-contrib
+sudo systemctl start postgresql && sudo systemctl enable postgresql
 
-sudo systemctl start postgresql
-sudo systemctl enable postgresql
-```
-
-### 2.4 Создание базы данных
-
-```bash
 sudo -u postgres psql
-
-CREATE USER sqlchat WITH PASSWORD 'your_secure_password';
+CREATE USER sqlchat WITH PASSWORD 'your_password';
 CREATE DATABASE sqlchat_db OWNER sqlchat;
 GRANT ALL PRIVILEGES ON DATABASE sqlchat_db TO sqlchat;
 \q
 ```
 
-### 2.5 Настройка переменных окружения
+### 3.3 Установка приложения
 
 ```bash
-cp .env.example .env
-nano .env
-```
-
-Укажите `DATABASE_URL` для прямого подключения:
-```bash
-DATABASE_URL=postgresql://sqlchat:your_secure_password@localhost:5432/sqlchat_db
-```
-
-### 2.6 Установка и сборка
-
-```bash
-# Установка зависимостей
+git clone <repo-url>
+cd ai-sql-chatbot
 npm install
-
-# Создание таблиц
+cp .env.example .env
+nano .env   # Укажите DATABASE_URL и настройки LLM
 npm run db:push
-
-# Тестовые данные (опционально)
-npx tsx server/seed.ts
-
-# Сборка production версии
 npm run build
 ```
 
-### 2.7 Запуск
+### 3.4 Запуск через PM2
 
-**Простой запуск:**
-```bash
-npm run start
-```
-
-**Через PM2 (рекомендуется для production):**
 ```bash
 npm install -g pm2
-
 pm2 start npm --name "sqlchat" -- run start
-
-# Автозапуск при перезагрузке сервера
 pm2 startup
 pm2 save
+```
 
-# Полезные команды
-pm2 status          # статус
-pm2 logs sqlchat    # логи
-pm2 restart sqlchat # перезапуск
-pm2 stop sqlchat    # остановка
+### 3.5 Systemd (альтернатива PM2)
+
+Создайте `/etc/systemd/system/ai-sql-chatbot.service`:
+
+```ini
+[Unit]
+Description=AI SQL Chat Bot
+After=network.target postgresql.service
+
+[Service]
+Type=simple
+User=www-data
+WorkingDirectory=/opt/ai-sql-chatbot
+EnvironmentFile=/opt/ai-sql-chatbot/.env
+ExecStart=/usr/bin/node dist/index.js
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+```
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable ai-sql-chatbot
+sudo systemctl start ai-sql-chatbot
 ```
 
 ---
 
-## Настройка Nginx (reverse proxy)
-
-Применимо к обоим способам деплоя. Nginx обеспечивает HTTPS, сжатие и безопасность.
-
-### Установка
+## Nginx (reverse proxy)
 
 ```bash
 sudo apt install nginx
-```
-
-### Конфигурация
-
-```bash
 sudo nano /etc/nginx/sites-available/sqlchat
 ```
 
@@ -247,7 +214,7 @@ server {
     server_name your-domain.com;
 
     location / {
-        proxy_pass http://localhost:5000;
+        proxy_pass http://127.0.0.1:5000;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection 'upgrade';
@@ -256,8 +223,6 @@ server {
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_cache_bypass $http_upgrade;
-
-        # Таймауты для длительных запросов к LLM
         proxy_connect_timeout 60s;
         proxy_send_timeout 60s;
         proxy_read_timeout 120s;
@@ -267,51 +232,41 @@ server {
 }
 ```
 
-### Активация
-
 ```bash
 sudo ln -s /etc/nginx/sites-available/sqlchat /etc/nginx/sites-enabled/
-sudo nginx -t
-sudo systemctl restart nginx
+sudo nginx -t && sudo systemctl reload nginx
 ```
 
----
-
-## SSL-сертификат (HTTPS)
+## SSL (Let's Encrypt)
 
 ```bash
 sudo apt install certbot python3-certbot-nginx
 sudo certbot --nginx -d your-domain.com
 ```
 
-Certbot автоматически настроит HTTPS и редирект с HTTP.
-
 ---
 
-## Использование с Ollama (локальные модели)
+## Ollama (локальные модели без OpenAI)
 
-Для работы без OpenAI API можно использовать Ollama — локальный LLM.
-
-### Установка Ollama
+### Установка
 
 ```bash
-curl -fsSL https://ollama.com/install.sh | sh
-
-# Скачивание модели
+curl -fsSL https://ollama.ai/install.sh | sh
 ollama pull llama3.1
 ```
 
-### Настройка .env
+### Конфигурация
 
-```bash
+```env
 LLM_PROVIDER=ollama
 OLLAMA_BASE_URL=http://localhost:11434/v1
 OLLAMA_MODEL=llama3.1
 ```
 
-### Docker с Ollama
+### Docker + Ollama
 
 Добавьте в `docker-compose.yml`:
+
 ```yaml
   ollama:
     image: ollama/ollama
@@ -322,164 +277,142 @@ OLLAMA_MODEL=llama3.1
     restart: unless-stopped
 ```
 
-И измените в `.env`:
-```bash
+В `.env`:
+```env
 OLLAMA_BASE_URL=http://ollama:11434/v1
 ```
 
----
-
-## Подключение к внешней базе данных
-
-Если PostgreSQL находится на другом сервере:
-
-### Ручная установка
-
-Укажите адрес в `.env`:
-```bash
-DATABASE_URL=postgresql://user:password@remote-host:5432/database_name
+Или при локальном Ollama из Docker-контейнера:
+```env
+OLLAMA_BASE_URL=http://host.docker.internal:11434/v1
 ```
 
-### Docker с внешней БД
-
-Создайте файл `docker-compose.external-db.yml`:
+Добавьте в docker-compose `extra_hosts`:
 ```yaml
-version: '3.8'
-
-services:
-  app:
-    build: .
-    ports:
-      - "${PORT:-5000}:5000"
-    env_file:
-      - .env
-    environment:
-      - NODE_ENV=production
-    restart: unless-stopped
-```
-
-Укажите `DATABASE_URL` в `.env` (адрес внешнего сервера):
-```bash
-DATABASE_URL=postgresql://user:password@remote-host:5432/database_name
-```
-
-Запустите только приложение:
-```bash
-docker compose -f docker-compose.external-db.yml up -d --build
-```
-
-Убедитесь, что удалённый PostgreSQL:
-- Разрешает подключения с IP вашего сервера (файл `pg_hba.conf`)
-- Порт 5432 открыт в файрволе
-
----
-
-## Обновление приложения
-
-### Docker
-
-```bash
-git pull
-docker compose up -d --build
-```
-
-### Ручная установка
-
-```bash
-pm2 stop sqlchat
-git pull
-npm install
-npm run db:push
-npm run build
-pm2 start sqlchat
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 ```
 
 ---
 
-## Устранение неполадок
+## Подключение к внешней БД для запросов
 
-### Ошибка подключения к БД
+Системная БД (DATABASE_URL) хранит пользователей, чаты и сессии. Целевая БД — та, по которой пользователи задают вопросы.
+
+### PostgreSQL
+
+```env
+DATABASE_TYPE=postgresql
+TARGET_DATABASE_URL=postgresql://readonly:pass@analytics-server:5432/warehouse
+TARGET_PGDATABASE=warehouse
+```
+
+### ClickHouse
+
+```env
+DATABASE_TYPE=clickhouse
+CLICKHOUSE_URL=http://clickhouse:8123
+CLICKHOUSE_DATABASE=analytics
+```
+
+---
+
+## Telegram-бот
+
+### Создание
+
+1. Откройте [@BotFather](https://t.me/BotFather) в Telegram
+2. `/newbot` -> задайте имя и username
+3. Скопируйте токен
+
+### Получение chat_id
+
+1. Добавьте бота в чат/группу
+2. Отправьте сообщение
+3. Откройте `https://api.telegram.org/bot<TOKEN>/getUpdates`
+4. Найдите `chat.id`
+
+### Конфигурация
+
+```env
+TELEGRAM_BOT_TOKEN=123456789:ABCdefGHIjklMNOpqrsTUVwxyz
+TELEGRAM_CHAT_ID=-1001234567890
+```
+
+---
+
+## Полный список переменных окружения
+
+| Переменная | Обязательная | Описание | По умолчанию |
+|---|---|---|---|
+| `DATABASE_URL` | Да | Системная PostgreSQL | - |
+| `SESSION_SECRET` | Да | Секрет для сессий | - |
+| `LLM_PROVIDER` | Нет | openai / ollama / custom | `openai` |
+| `LLM_TEMPERATURE` | Нет | Температура | `0.1` |
+| `LLM_MAX_TOKENS` | Нет | Макс. токенов | `2048` |
+| `OPENAI_MODEL` | Нет | Модель OpenAI | `gpt-5` |
+| `AI_INTEGRATIONS_OPENAI_BASE_URL` | Нет | URL OpenAI API | - |
+| `AI_INTEGRATIONS_OPENAI_API_KEY` | Нет | Ключ OpenAI | - |
+| `OLLAMA_BASE_URL` | Нет | URL Ollama | `http://localhost:11434/v1` |
+| `OLLAMA_MODEL` | Нет | Модель Ollama | `llama3.1` |
+| `CUSTOM_LLM_BASE_URL` | Нет | URL Custom API | - |
+| `CUSTOM_LLM_API_KEY` | Нет | Ключ Custom API | - |
+| `CUSTOM_LLM_MODEL` | Нет | Модель Custom API | - |
+| `DATABASE_TYPE` | Нет | Тип целевой БД | `postgresql` |
+| `TARGET_DATABASE_URL` | Нет | URL целевой БД | DATABASE_URL |
+| `TARGET_PGDATABASE` | Нет | Имя целевой БД | - |
+| `CLICKHOUSE_URL` | Нет | URL ClickHouse | - |
+| `CLICKHOUSE_DATABASE` | Нет | БД ClickHouse | `default` |
+| `TELEGRAM_BOT_TOKEN` | Нет | Токен Telegram-бота | - |
+| `TELEGRAM_CHAT_ID` | Нет | ID чата Telegram | - |
+| `POSTGRES_USER` | Docker | Пользователь PG | - |
+| `POSTGRES_PASSWORD` | Docker | Пароль PG | - |
+| `POSTGRES_DB` | Docker | Имя БД PG | - |
+
+---
+
+## Решение проблем
+
+### БД не подключается
 
 ```bash
 # Docker
 docker compose logs db
 docker compose exec db psql -U sqlchat -d sqlchat_db
 
-# Ручная установка
+# Локально
 sudo systemctl status postgresql
-psql -U sqlchat -h localhost -d sqlchat_db
+psql $DATABASE_URL -c "SELECT 1;"
 ```
 
 ### Ошибки LLM
 
+- Проверьте API-ключ
+- Ollama: `ollama serve` должен быть запущен
+- Custom API: проверьте совместимость с OpenAI форматом
+
+### Ошибки миграций
+
 ```bash
-# Проверка переменных
-grep -E "LLM|OPENAI|OLLAMA" .env
-
-# Тест OpenAI API ключа
-curl https://api.openai.com/v1/models \
-  -H "Authorization: Bearer sk-your-key"
-
-# Тест Ollama
-curl http://localhost:11434/api/tags
+npm run db:push
 ```
 
-### Просмотр логов
+### Логи
 
 ```bash
-# Docker
-docker compose logs -f app
-
-# PM2
-pm2 logs sqlchat
-
-# Nginx
-sudo tail -f /var/log/nginx/error.log
+docker compose logs -f app   # Docker
+pm2 logs sqlchat             # PM2
+journalctl -u ai-sql-chatbot # systemd
+sudo tail -f /var/log/nginx/error.log  # Nginx
 ```
 
 ---
 
 ## Безопасность
 
-1. **Файрвол** — откройте только необходимые порты:
-   ```bash
-   sudo ufw allow 80
-   sudo ufw allow 443
-   sudo ufw allow 22
-   sudo ufw enable
-   ```
-
-2. **Не храните .env в Git** — файл `.env` уже в `.dockerignore`
-
-3. **Регулярные обновления**:
-   ```bash
-   sudo apt update && sudo apt upgrade
-   ```
-
-4. **Бэкапы БД**:
-   ```bash
-   # Docker
-   docker compose exec db pg_dump -U sqlchat sqlchat_db > backup_$(date +%Y%m%d).sql
-
-   # Локальная БД
-   pg_dump -U sqlchat sqlchat_db > backup_$(date +%Y%m%d).sql
-   ```
-
-5. **Права доступа к .env**:
-   ```bash
-   chmod 600 .env
-   ```
-
----
-
-## Структура файлов деплоя
-
-```
-project/
-├── Dockerfile          # Multi-stage сборка приложения
-├── docker-compose.yml  # Оркестрация app + PostgreSQL
-├── .dockerignore       # Исключения для Docker
-├── .env.example        # Шаблон переменных окружения
-├── .env                # Ваши настройки (не в Git!)
-└── DEPLOYMENT.md       # Эта инструкция
-```
+1. **Файрвол**: откройте только 80, 443, 22
+2. **Не коммитьте .env** в Git
+3. **Права доступа**: `chmod 600 .env`
+4. **SSL**: обязательно для production
+5. **Регулярные бэкапы БД**
+6. **Обновления ОС**: `sudo apt update && sudo apt upgrade`

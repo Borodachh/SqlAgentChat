@@ -1,102 +1,125 @@
 # AI SQL Chat Bot
 
-Веб-приложение чат-бота с AI агентом для преобразования текстовых запросов на естественном языке в SQL запросы с поддержкой множества LLM провайдеров и баз данных.
+Веб-приложение с AI-агентом для преобразования запросов на естественном языке в SQL. Поддержка множества LLM-провайдеров и типов баз данных, экспорт в Excel/CSV, отправка отчётов в Telegram.
 
 ## Возможности
 
-- **Чат-интерфейс** с поддержкой естественного языка (русский)
-- **Множественные чаты** с историей и переключением между ними
-- **Сворачиваемая боковая панель** с иконками чатов
-- **Множество LLM провайдеров**:
-  - OpenAI API (GPT-4, GPT-5)
-  - Ollama (локальные модели: Llama, Mistral, и др.)
-  - Custom API (любой OpenAI-совместимый сервер)
-- **Множество баз данных**:
-  - PostgreSQL (Neon Serverless)
-  - ClickHouse (с оптимизированными запросами)
-- **Type-aware SQL генерация** - запросы оптимизированы под тип БД
-- **Экспорт результатов**:
-  - Excel (.xlsx) с форматированием
-  - CSV с UTF-8 поддержкой
-- **Персистентная история** сообщений и чатов между сессиями
+- **Естественный язык в SQL** — задавайте вопросы по-русски, получайте готовые SQL-запросы и результаты
+- **Мультипользовательский режим** — регистрация, авторизация, изоляция данных между пользователями
+- **Множественные чаты** — создание, переключение, удаление чатов с полной историей
+- **Несколько LLM-провайдеров** — OpenAI API, Ollama (локальные модели), любой OpenAI-совместимый сервер
+- **Несколько типов БД** — PostgreSQL, ClickHouse
+- **Разделение БД** — системная БД (пользователи, чаты) отдельно от целевой БД для SQL-запросов
+- **Экспорт** — Excel (.xlsx) и CSV с заголовком-описанием на русском языке и датой формирования
+- **Telegram** — отправка отчётов с кратким описанием запроса (генерируется через LLM)
+- **Визуализация** — столбчатые и линейные диаграммы (Chart.js)
+- **Шаблоны запросов** — сохранение и повторное использование SQL-запросов
+- **Безопасность** — только SELECT-запросы, блокировка деструктивных команд
+- **Просмотр схемы БД** — диалог со списком таблиц и столбцов целевой базы
 
-## Технологический стек
+## Быстрый старт
 
-### Frontend
-- React 18 + TypeScript
-- TanStack Query (state management)
-- Wouter (routing)
-- Shadcn UI + Tailwind CSS
-- Lucide React (icons)
+### Docker (рекомендуется)
 
-### Backend
-- Express.js
-- PostgreSQL (Neon Serverless) / ClickHouse
-- Drizzle ORM
-- OpenAI SDK (универсальный для всех провайдеров)
-- ExcelJS
+```bash
+git clone <repo-url>
+cd ai-sql-chatbot
+
+# Скопируйте и настройте переменные окружения
+cp .env.example .env
+# Отредактируйте .env
+
+# Запуск
+docker-compose up -d
+```
+
+Приложение будет доступно на `http://localhost:5000`.
+
+### Без Docker
+
+```bash
+npm install
+cp .env.example .env
+# Отредактируйте .env — укажите DATABASE_URL и настройки LLM
+
+npm run db:push   # Применение схемы БД
+npm run dev        # Разработка
+# или
+npm run build && npm start   # Production
+```
+
+Подробнее о развёртывании — в [DEPLOYMENT.md](DEPLOYMENT.md).
 
 ## Конфигурация
 
-### Переменные окружения
+Все настройки задаются через переменные окружения.
 
-#### LLM Провайдеры
+### LLM-провайдер
 
-| Переменная | Описание | Значения |
-|------------|----------|----------|
-| `LLM_PROVIDER` | Тип провайдера | `openai`, `ollama`, `custom` |
-| `LLM_TEMPERATURE` | Температура генерации | `0.0` - `2.0` (по умолчанию `0.1`) |
-| `LLM_MAX_TOKENS` | Макс. токенов | По умолчанию `2048` |
+| Переменная | Описание | По умолчанию |
+|---|---|---|
+| `LLM_PROVIDER` | Провайдер: `openai`, `ollama`, `custom` | `openai` |
+| `LLM_TEMPERATURE` | Температура генерации | `0.1` |
+| `LLM_MAX_TOKENS` | Максимум токенов ответа | `2048` |
 
-**OpenAI:**
+#### OpenAI
+
 | Переменная | Описание |
-|------------|----------|
-| `AI_INTEGRATIONS_OPENAI_BASE_URL` | API URL |
-| `AI_INTEGRATIONS_OPENAI_API_KEY` | API ключ |
-| `OPENAI_MODEL` | Модель (по умолчанию `gpt-5`) |
+|---|---|
+| `OPENAI_MODEL` | Модель (gpt-4, gpt-4o, gpt-5) |
+| `AI_INTEGRATIONS_OPENAI_BASE_URL` | URL API |
+| `AI_INTEGRATIONS_OPENAI_API_KEY` | API-ключ |
 
-**Ollama (локальные модели):**
+#### Ollama (локальные модели)
+
+| Переменная | Описание | По умолчанию |
+|---|---|---|
+| `OLLAMA_BASE_URL` | URL сервера Ollama | `http://localhost:11434/v1` |
+| `OLLAMA_MODEL` | Модель | `llama3.1` |
+
+#### Custom API (OpenAI-совместимый)
+
 | Переменная | Описание |
-|------------|----------|
-| `OLLAMA_BASE_URL` | URL сервера (по умолчанию `http://localhost:11434/v1`) |
-| `OLLAMA_MODEL` | Модель (например `llama3.1`, `mistral`, `codellama`) |
+|---|---|
+| `CUSTOM_LLM_BASE_URL` | URL сервера |
+| `CUSTOM_LLM_API_KEY` | API-ключ |
+| `CUSTOM_LLM_MODEL` | Модель |
 
-**Custom API:**
+### Базы данных
+
 | Переменная | Описание |
-|------------|----------|
-| `CUSTOM_LLM_BASE_URL` | URL OpenAI-совместимого API |
-| `CUSTOM_LLM_API_KEY` | API ключ |
-| `CUSTOM_LLM_MODEL` | Название модели |
+|---|---|
+| `DATABASE_URL` | Системная PostgreSQL (пользователи, чаты, сессии) |
+| `DATABASE_TYPE` | Тип целевой БД: `postgresql` или `clickhouse` |
+| `TARGET_DATABASE_URL` | Целевая БД для SQL-запросов (если не задан — DATABASE_URL) |
+| `TARGET_PGDATABASE` | Имя целевой PostgreSQL БД |
+| `CLICKHOUSE_URL` | URL ClickHouse (при DATABASE_TYPE=clickhouse) |
+| `CLICKHOUSE_DATABASE` | Имя БД ClickHouse |
+| `SESSION_SECRET` | Секрет для подписи сессий |
 
-#### Базы данных
+### Telegram
 
-| Переменная | Описание | Значения |
-|------------|----------|----------|
-| `DATABASE_TYPE` | Тип БД | `postgresql`, `clickhouse` |
-
-**PostgreSQL:**
 | Переменная | Описание |
-|------------|----------|
-| `DATABASE_URL` | Connection string |
-
-**ClickHouse:**
-| Переменная | Описание |
-|------------|----------|
-| `CLICKHOUSE_URL` | URL сервера (например `http://localhost:8123`) |
-| `CLICKHOUSE_DATABASE` | Название базы (по умолчанию `default`) |
+|---|---|
+| `TELEGRAM_BOT_TOKEN` | Токен Telegram-бота |
+| `TELEGRAM_CHAT_ID` | ID чата/группы для отправки отчётов |
 
 ## Примеры конфигураций
 
-### OpenAI API (по умолчанию)
-```bash
+### OpenAI + PostgreSQL
+
+```env
 LLM_PROVIDER=openai
-OPENAI_MODEL=gpt-4
+OPENAI_MODEL=gpt-4o
+AI_INTEGRATIONS_OPENAI_API_KEY=sk-...
 DATABASE_TYPE=postgresql
-DATABASE_URL=postgresql://user:pass@host/db
+DATABASE_URL=postgresql://user:pass@host/systemdb
+TARGET_DATABASE_URL=postgresql://user:pass@host/analyticsdb
 ```
 
-### Локальная модель через Ollama
-```bash
+### Ollama (локальная модель) + PostgreSQL
+
+```env
 LLM_PROVIDER=ollama
 OLLAMA_BASE_URL=http://localhost:11434/v1
 OLLAMA_MODEL=llama3.1
@@ -104,319 +127,159 @@ DATABASE_TYPE=postgresql
 DATABASE_URL=postgresql://user:pass@host/db
 ```
 
-### Self-hosted LLM + ClickHouse
-```bash
+### Custom LLM + ClickHouse
+
+```env
 LLM_PROVIDER=custom
-CUSTOM_LLM_BASE_URL=http://my-llm-server:8080/v1
-CUSTOM_LLM_API_KEY=my-api-key
+CUSTOM_LLM_BASE_URL=http://my-llm:8080/v1
+CUSTOM_LLM_API_KEY=my-key
 CUSTOM_LLM_MODEL=my-model
 DATABASE_TYPE=clickhouse
 CLICKHOUSE_URL=http://clickhouse:8123
 CLICKHOUSE_DATABASE=analytics
+DATABASE_URL=postgresql://user:pass@host/systemdb
 ```
-
-## Структура проекта
-
-```
-ai-sql-chatbot/
-├── client/                      # Frontend приложение
-│   └── src/
-│       ├── components/          # React компоненты
-│       │   ├── ChatPanel.tsx    # Панель с историей чата
-│       │   ├── ChatInput.tsx    # Поле ввода сообщений
-│       │   ├── MessageBubble.tsx # Отдельное сообщение в чате
-│       │   ├── ResultsPanel.tsx # Панель с результатами
-│       │   ├── ResultsTable.tsx # Таблица результатов SQL
-│       │   ├── SQLQueryDisplay.tsx # Отображение SQL запроса
-│       │   ├── EmptyState.tsx   # Пустое состояние
-│       │   └── ui/              # Shadcn UI компоненты
-│       ├── hooks/
-│       │   └── use-toast.ts     # Toast notifications hook
-│       ├── lib/
-│       │   ├── queryClient.ts   # TanStack Query настройка
-│       │   └── utils.ts         # Utility функции
-│       ├── pages/
-│       │   ├── home.tsx         # Главная страница с чатами
-│       │   └── not-found.tsx    # 404 страница
-│       ├── App.tsx              # Root компонент
-│       ├── index.css            # Tailwind + кастомные стили
-│       └── main.tsx             # Entry point
-│
-├── server/                      # Backend приложение
-│   ├── llm-config.ts            # Конфигурация LLM провайдеров
-│   ├── llm-service.ts           # Универсальный LLM сервис
-│   ├── database-adapters/       # Адаптеры баз данных
-│   │   ├── base-adapter.ts      # Базовый интерфейс
-│   │   ├── postgresql-adapter.ts # PostgreSQL адаптер
-│   │   ├── clickhouse-adapter.ts # ClickHouse адаптер
-│   │   └── index.ts             # Фабрика адаптеров
-│   ├── db.ts                    # Drizzle ORM подключение
-│   ├── storage.ts               # DatabaseStorage для чатов и сообщений
-│   ├── routes.ts                # API endpoints
-│   ├── seed.ts                  # Скрипт инициализации данных
-│   ├── index.ts                 # Express сервер + graceful shutdown
-│   └── vite.ts                  # Vite dev server integration
-│
-├── shared/                      # Общий код
-│   └── schema.ts                # Drizzle схемы + Zod валидация + TypeScript типы
-│
-├── design_guidelines.md         # Дизайн система (Material Design)
-├── drizzle.config.ts            # Drizzle ORM конфигурация
-├── package.json                 # Зависимости и скрипты
-├── tailwind.config.ts           # Tailwind CSS конфигурация
-├── tsconfig.json                # TypeScript конфигурация
-├── vite.config.ts               # Vite конфигурация
-└── replit.md                    # Документация проекта
-```
-
-## API Endpoints
-
-### Чаты
-
-#### GET /api/chats
-Получение списка всех чатов.
-
-**Ответ:**
-```json
-{
-  "chats": [
-    {
-      "id": "chat-1234567890",
-      "title": "Покажи всех сотрудников",
-      "createdAt": 1699999999999,
-      "updatedAt": 1699999999999
-    }
-  ]
-}
-```
-
-#### POST /api/chats
-Создание нового чата.
-
-**Ответ:**
-```json
-{
-  "id": "chat-1234567890",
-  "title": "Новый чат",
-  "createdAt": 1699999999999,
-  "updatedAt": 1699999999999
-}
-```
-
-#### DELETE /api/chats/:chatId
-Удаление чата и всех его сообщений.
-
-### Сообщения
-
-#### GET /api/chats/:chatId/messages
-Получение истории сообщений чата.
-
-**Ответ:**
-```json
-{
-  "messages": [
-    {
-      "id": "msg-1234-user",
-      "chatId": "chat-1234567890",
-      "role": "user",
-      "content": "Покажи всех сотрудников",
-      "timestamp": 1699999999999
-    }
-  ]
-}
-```
-
-#### POST /api/chats/:chatId/chat
-Отправка сообщения и получение SQL результатов.
-
-**Запрос:**
-```json
-{
-  "message": "Покажи всех сотрудников из IT отдела"
-}
-```
-
-**Ответ:**
-```json
-{
-  "id": "msg-1234-assistant",
-  "chatId": "chat-1234567890",
-  "role": "assistant",
-  "content": "Возвращает всех сотрудников из отдела IT",
-  "sqlQuery": "SELECT * FROM employees WHERE department = 'IT';",
-  "queryResults": {
-    "columns": ["id", "name", "position", "department", "salary", "hire_date"],
-    "rows": [...],
-    "rowCount": 3,
-    "executionTime": 12.5
-  },
-  "timestamp": 1699999999999
-}
-```
-
-### Конфигурация
-
-#### GET /api/config
-Получение текущей конфигурации.
-
-**Ответ:**
-```json
-{
-  "llm": {
-    "provider": "openai",
-    "model": "gpt-5"
-  },
-  "database": {
-    "type": "postgresql"
-  }
-}
-```
-
-### Экспорт
-
-#### POST /api/export?format=xlsx|csv
-Экспорт результатов в Excel или CSV.
-
-**Query параметры:**
-- `format`: `xlsx` (по умолчанию) или `csv`
-
-**Запрос:**
-```json
-{
-  "columns": ["id", "name", "salary"],
-  "rows": [{"id": 1, "name": "Иванов", "salary": 120000}]
-}
-```
-
-**Ответ:** Binary файл (.xlsx или .csv)
-
-## Безопасность SQL
-
-- Валидация: только SELECT и WITH запросы разрешены
-- Блокировка опасных ключевых слов:
-  - DROP, DELETE, INSERT, UPDATE
-  - ALTER, CREATE, EXEC, EXECUTE, TRUNCATE
-- Удаление SQL комментариев из запросов
-- Защита от SQL injection через validated queries
-
-## Type-Aware SQL Generation
-
-Система автоматически адаптирует SQL запросы под тип базы данных:
-
-### PostgreSQL
-```sql
--- Работа с датами
-SELECT * FROM sales WHERE sale_date >= CURRENT_DATE - INTERVAL '30 days';
-
--- Строковые функции
-SELECT LOWER(name), UPPER(department) FROM employees;
-```
-
-### ClickHouse
-```sql
--- Работа с датами
-SELECT * FROM sales WHERE sale_date >= today() - 30;
-
--- Агрегации с условиями
-SELECT sumIf(total_amount, quantity > 10) FROM sales;
-
--- Строковые функции
-SELECT lower(name), upper(department) FROM employees;
-```
-
-## Запуск проекта
-
-### Development
-```bash
-npm run dev
-```
-
-### Production
-```bash
-npm run build
-npm run start
-```
-
-### Database
-```bash
-npm run db:push    # Синхронизация схемы
-```
-
-## Примеры запросов
-
-| Естественный язык | SQL (PostgreSQL) |
-|-------------------|------------------|
-| "Покажи всех сотрудников" | `SELECT * FROM employees;` |
-| "Кто зарабатывает больше 100000?" | `SELECT * FROM employees WHERE salary > 100000;` |
-| "Топ 5 самых дорогих продуктов" | `SELECT * FROM products ORDER BY price DESC LIMIT 5;` |
-| "Общая сумма продаж по клиентам" | `SELECT customer_name, SUM(total_amount) FROM sales GROUP BY customer_name;` |
 
 ## Архитектура
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                         Frontend                             │
-│  ┌─────────────┐    ┌─────────────┐    ┌─────────────┐     │
-│  │ Chat Sidebar│    │  ChatPanel  │    │ResultsPanel │     │
-│  │ (Collapsible)    │             │    │ + Export    │     │
-│  └──────┬──────┘    └──────┬──────┘    └──────┬──────┘     │
-│         └─────────────────┼───────────────────┘            │
-│                    TanStack Query                           │
-└─────────────────────────────┬───────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────┐
-│                         Backend                              │
-│  ┌─────────────┐    ┌─────────────┐    ┌─────────────┐     │
-│  │   Routes    │───▶│ LLM Service │───▶│  Validator  │     │
-│  │ /api/chats  │    └──────┬──────┘    └──────┬──────┘     │
-│  └──────┬──────┘           │                   │            │
-│         │           ┌──────┴──────┐           │            │
-│         │           │ LLM Config  │           │            │
-│         │           │ OpenAI/Ollama/Custom    │            │
-│         │           └─────────────┘           │            │
-│         ▼                                      ▼            │
-│  ┌─────────────┐                       ┌─────────────┐     │
-│  │   Storage   │◀──────────────────────│ DB Adapters │     │
-│  │ chats/msgs  │                       └──────┬──────┘     │
-│  └──────┬──────┘                              │            │
-└─────────┼─────────────────────────────────────┼─────────────┘
-          │                                      │
-          ▼                                      ▼
-┌─────────────────────────────────────────────────────────────┐
-│                    Database Layer                            │
-│  ┌───────────────────────┐    ┌───────────────────────┐    │
-│  │   PostgreSQL (Neon)   │    │      ClickHouse       │    │
-│  │ chats, messages       │    │   analytics, events   │    │
-│  │ employees, products   │    │   logs, metrics       │    │
-│  │ sales                 │    │                       │    │
-│  └───────────────────────┘    └───────────────────────┘    │
-└─────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────┐
+│                 Client (React)                   │
+│  ┌───────────┐ ┌──────────────┐ ┌─────────────┐ │
+│  │ ChatPanel │ │ ResultsPanel │ │  Templates  │ │
+│  │ ChatInput │ │ ChartView    │ │  Dialog     │ │
+│  │ Messages  │ │ ResultsTable │ │             │ │
+│  └───────────┘ └──────────────┘ └─────────────┘ │
+└──────────────────────┬──────────────────────────┘
+                       │ HTTP API
+┌──────────────────────▼──────────────────────────┐
+│               Server (Express.js)                │
+│  ┌────────────┐ ┌────────────┐ ┌──────────────┐ │
+│  │  Routes    │ │ LLM Service│ │   Storage    │ │
+│  │  Auth      │ │ (OpenAI SDK│ │  (Drizzle)   │ │
+│  │  Export    │ │  Ollama    │ │              │ │
+│  │  Telegram  │ │  Custom)   │ │              │ │
+│  └────────────┘ └─────┬──────┘ └──────┬───────┘ │
+└───────────────────────┼───────────────┼─────────┘
+                        │               │
+              ┌─────────▼──┐    ┌───────▼────────┐
+              │ Target DB  │    │  System DB     │
+              │ (PG / CH)  │    │  (PostgreSQL)  │
+              │ SQL-запросы │    │  users, chats  │
+              └────────────┘    └────────────────┘
 ```
 
-## База данных
+### Файловая структура
 
-### Таблицы
+```
+├── server/
+│   ├── index.ts                 # Express сервер, graceful shutdown
+│   ├── routes.ts                # API-эндпоинты
+│   ├── storage.ts               # Drizzle ORM хранилище
+│   ├── db.ts                    # Подключение к системной БД
+│   ├── seed.ts                  # Инициализация тестовых данных
+│   ├── llm-config.ts            # Конфигурация LLM-провайдеров
+│   ├── llm-service.ts           # Генерация SQL и заголовков через LLM
+│   ├── vite.ts                  # Vite dev server middleware
+│   └── database-adapters/
+│       ├── base-adapter.ts      # Интерфейс DatabaseAdapter
+│       ├── postgresql-adapter.ts # PostgreSQL (Neon Serverless)
+│       ├── clickhouse-adapter.ts # ClickHouse HTTP API
+│       └── index.ts             # Фабрика адаптеров
+├── client/src/
+│   ├── App.tsx                  # Корневой компонент, роутинг
+│   ├── pages/
+│   │   ├── home.tsx             # Сайдбар + чат + результаты
+│   │   ├── auth.tsx             # Логин / регистрация
+│   │   └── not-found.tsx        # 404
+│   ├── components/
+│   │   ├── ChatPanel.tsx        # Панель чата
+│   │   ├── ChatInput.tsx        # Поле ввода
+│   │   ├── MessageBubble.tsx    # Сообщение
+│   │   ├── ResultsPanel.tsx     # Результаты + экспорт + шаблоны
+│   │   ├── ResultsTable.tsx     # Таблица
+│   │   ├── ChartView.tsx        # Диаграммы (Chart.js)
+│   │   ├── EmptyState.tsx       # Пустое состояние
+│   │   ├── SQLQueryDisplay.tsx  # SQL-запрос
+│   │   └── TemplatesDialog.tsx  # Сохранённые шаблоны
+│   ├── hooks/
+│   │   ├── useAuth.ts           # Авторизация
+│   │   └── use-toast.ts         # Уведомления
+│   └── lib/
+│       ├── queryClient.ts       # React Query
+│       └── utils.ts             # Утилиты
+├── shared/
+│   └── schema.ts                # Drizzle-схема + типы
+├── Dockerfile                   # Docker-образ
+├── docker-compose.yml           # Docker Compose
+├── DEPLOYMENT.md                # Инструкция по развёртыванию
+└── README.md
+```
 
-**chats** - Список чатов
-| Колонка | Тип | Описание |
-|---------|-----|----------|
-| id | text | Уникальный ID чата |
-| title | text | Название чата (из первого сообщения) |
-| created_at | bigint | Время создания |
-| updated_at | bigint | Время последнего обновления |
+## API
 
-**messages** - Сообщения чатов
-| Колонка | Тип | Описание |
-|---------|-----|----------|
-| id | text | Уникальный ID сообщения |
-| chat_id | text | ID чата (FK) |
-| role | text | user / assistant / system |
-| content | text | Текст сообщения |
-| sql_query | text | SQL запрос (nullable) |
-| query_results | jsonb | Результаты запроса (nullable) |
-| timestamp | bigint | Время сообщения |
-| error | text | Ошибка (nullable) |
+### Авторизация
+
+| Метод | URL | Описание |
+|---|---|---|
+| POST | `/api/register` | Регистрация |
+| POST | `/api/login` | Вход |
+| POST | `/api/logout` | Выход |
+| GET | `/api/user` | Текущий пользователь |
+
+### Чаты
+
+| Метод | URL | Описание |
+|---|---|---|
+| GET | `/api/chats` | Список чатов |
+| POST | `/api/chats` | Создать чат |
+| DELETE | `/api/chats/:chatId` | Удалить чат |
+
+### Сообщения
+
+| Метод | URL | Описание |
+|---|---|---|
+| GET | `/api/chats/:chatId/messages` | История сообщений |
+| POST | `/api/chats/:chatId/chat` | Отправить запрос -> SQL -> результат |
+
+### Шаблоны
+
+| Метод | URL | Описание |
+|---|---|---|
+| GET | `/api/templates` | Список шаблонов |
+| POST | `/api/templates` | Сохранить шаблон |
+| DELETE | `/api/templates/:id` | Удалить шаблон |
+
+### Экспорт и прочее
+
+| Метод | URL | Описание |
+|---|---|---|
+| POST | `/api/export?format=xlsx\|csv` | Скачать Excel или CSV |
+| POST | `/api/send-telegram` | Отправить отчёт в Telegram |
+| GET | `/api/config` | Конфигурация LLM и БД |
+| GET | `/api/tables` | Таблицы и столбцы целевой БД |
+
+## Безопасность
+
+- Разрешены только `SELECT` и `WITH` запросы
+- Блокируются: `DROP`, `DELETE`, `INSERT`, `UPDATE`, `ALTER`, `CREATE`, `TRUNCATE`, `EXEC`
+- SQL-комментарии удаляются перед валидацией
+- Мультистейтмент-запросы проверяются поштучно
+- Пароли хешируются (bcrypt)
+- Сессии в PostgreSQL (connect-pg-simple)
+- Системные таблицы скрыты из списка таблиц
+
+## Стек
+
+| Компонент | Технология |
+|---|---|
+| Frontend | React 18, TanStack Query, Tailwind CSS, shadcn/ui, Chart.js |
+| Backend | Express.js, TypeScript, Drizzle ORM |
+| LLM | OpenAI SDK (совместимость с Ollama и другими) |
+| Системная БД | PostgreSQL (Neon Serverless) |
+| Целевая БД | PostgreSQL / ClickHouse |
+| Экспорт | ExcelJS, CSV |
+| Авторизация | express-session, bcrypt, connect-pg-simple |
 
 ## Лицензия
 

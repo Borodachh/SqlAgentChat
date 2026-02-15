@@ -9,7 +9,6 @@ services:
       - .env
     environment:
       - DATABASE_URL=postgresql://${POSTGRES_USER:-sqlchat}:${POSTGRES_PASSWORD:-sqlchat_pass}@db:5432/${POSTGRES_DB:-sqlchat_db}
-      - DATABASE_TYPE=postgresql
       - NODE_ENV=production
     depends_on:
       db:
