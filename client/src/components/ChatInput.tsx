@@ -1,4 +1,4 @@
-import { useState, KeyboardEvent, Dispatch, SetStateAction, useRef } from "react";
+import { useState, useEffect, KeyboardEvent, Dispatch, SetStateAction, useRef } from "react";
 import { Message } from "@shared/schema";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -13,9 +13,11 @@ interface ChatInputProps {
   setMessages: Dispatch<SetStateAction<Message[]>>;
   setCurrentResults: (results: any) => void;
   setSelectedMessageId: (id: string | null) => void;
+  externalMessage?: string | null;
+  onExternalMessageConsumed?: () => void;
 }
 
-export default function ChatInput({ chatId, messages, setMessages, setCurrentResults, setSelectedMessageId }: ChatInputProps) {
+export default function ChatInput({ chatId, messages, setMessages, setCurrentResults, setSelectedMessageId, externalMessage, onExternalMessageConsumed }: ChatInputProps) {
   const [input, setInput] = useState("");
   const { toast } = useToast();
   const pendingIdRef = useRef<string>("");
@@ -62,10 +64,17 @@ export default function ChatInput({ chatId, messages, setMessages, setCurrentRes
     }
   });
 
-  const handleSend = async () => {
-    if (!input.trim() || sendMessageMutation.isPending) return;
+  useEffect(() => {
+    if (externalMessage && !sendMessageMutation.isPending) {
+      onExternalMessageConsumed?.();
+      sendMessage(externalMessage);
+    }
+  }, [externalMessage]);
 
-    const messageContent = input.trim();
+  const sendMessage = async (text: string) => {
+    const messageContent = text.trim();
+    if (!messageContent || sendMessageMutation.isPending) return;
+
     const timestamp = Date.now();
     const userMessage: Message = {
       id: `msg-${timestamp}-user`,
@@ -96,6 +105,11 @@ export default function ChatInput({ chatId, messages, setMessages, setCurrentRes
     setMessages(prev => [...prev, pendingMessage]);
 
     await sendMessageMutation.mutateAsync(messageContent);
+  };
+
+  const handleSend = async () => {
+    if (!input.trim() || sendMessageMutation.isPending) return;
+    await sendMessage(input.trim());
   };
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {

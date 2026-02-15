@@ -2,9 +2,10 @@ import { Database, ArrowLeft } from "lucide-react";
 
 interface EmptyStateProps {
   hasMessages: boolean;
+  onSuggestionClick?: (text: string) => void;
 }
 
-export default function EmptyState({ hasMessages }: EmptyStateProps) {
+export default function EmptyState({ hasMessages, onSuggestionClick }: EmptyStateProps) {
   return (
     <div className="flex-1 flex items-center justify-center bg-background p-6">
       <div className="text-center max-w-md space-y-6">
@@ -33,24 +34,16 @@ export default function EmptyState({ hasMessages }: EmptyStateProps) {
               <span>Начните с вопроса в чате слева</span>
             </div>
             <div className="flex flex-wrap gap-2 justify-center">
-              <div 
-                className="px-3 py-2 text-xs rounded-md bg-muted/50 hover-elevate cursor-pointer"
-                data-testid="chip-example-1"
-              >
-                Покажи всех сотрудников
-              </div>
-              <div 
-                className="px-3 py-2 text-xs rounded-md bg-muted/50 hover-elevate cursor-pointer"
-                data-testid="chip-example-2"
-              >
-                Какие продукты дороже 1000?
-              </div>
-              <div 
-                className="px-3 py-2 text-xs rounded-md bg-muted/50 hover-elevate cursor-pointer"
-                data-testid="chip-example-3"
-              >
-                Сколько продаж в марте?
-              </div>
+              {["Покажи всех сотрудников", "Какие продукты дороже 1000?", "Сколько продаж в марте?"].map((suggestion, i) => (
+                <div 
+                  key={i}
+                  className="px-3 py-2 text-xs rounded-md bg-muted/50 hover-elevate cursor-pointer"
+                  onClick={() => onSuggestionClick?.(suggestion)}
+                  data-testid={`chip-example-${i + 1}`}
+                >
+                  {suggestion}
+                </div>
+              ))}
             </div>
           </div>
         )}

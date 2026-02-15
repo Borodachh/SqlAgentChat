@@ -1,4 +1,4 @@
-import { useRef, useEffect, Dispatch, SetStateAction } from "react";
+import { useRef, useState, useEffect, Dispatch, SetStateAction } from "react";
 import { Message } from "@shared/schema";
 import MessageBubble from "./MessageBubble";
 import ChatInput from "./ChatInput";
@@ -16,6 +16,7 @@ interface ChatPanelProps {
 
 export default function ChatPanel({ chatId, messages, setMessages, setCurrentResults, selectedMessageId, setSelectedMessageId, onMessageSelect }: ChatPanelProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const [suggestionToSend, setSuggestionToSend] = useState<string | null>(null);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -42,15 +43,16 @@ export default function ChatPanel({ chatId, messages, setMessages, setCurrentRes
                   Попробуйте спросить:
                 </p>
                 <div className="space-y-2 text-xs text-left">
-                  <div className="p-3 rounded-md bg-muted/50 text-muted-foreground hover-elevate cursor-default">
-                    "Покажи всех сотрудников"
-                  </div>
-                  <div className="p-3 rounded-md bg-muted/50 text-muted-foreground hover-elevate cursor-default">
-                    "Какие продукты стоят дороже 1000?"
-                  </div>
-                  <div className="p-3 rounded-md bg-muted/50 text-muted-foreground hover-elevate cursor-default">
-                    "Сколько всего продаж в этом месяце?"
-                  </div>
+                  {["Покажи всех сотрудников", "Какие продукты стоят дороже 1000?", "Сколько всего продаж в этом месяце?"].map((suggestion, i) => (
+                    <div
+                      key={i}
+                      className="p-3 rounded-md bg-muted/50 text-muted-foreground hover-elevate cursor-pointer"
+                      onClick={() => setSuggestionToSend(suggestion)}
+                      data-testid={`chip-suggestion-${i}`}
+                    >
+                      "{suggestion}"
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>
@@ -74,6 +76,8 @@ export default function ChatPanel({ chatId, messages, setMessages, setCurrentRes
           setMessages={setMessages}
           setCurrentResults={setCurrentResults}
           setSelectedMessageId={setSelectedMessageId}
+          externalMessage={suggestionToSend}
+          onExternalMessageConsumed={() => setSuggestionToSend(null)}
         />
       </div>
     </div>
