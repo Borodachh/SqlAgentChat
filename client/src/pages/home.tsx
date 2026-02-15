@@ -3,7 +3,8 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { Message, Chat } from "@shared/schema";
 import ChatPanel from "@/components/ChatPanel";
 import ResultsPanel from "@/components/ResultsPanel";
-import { Database, Plus, MessageSquare, Trash2, Table2, ChevronRight, ChevronDown, Loader2 } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
+import { Database, Plus, MessageSquare, Trash2, Table2, ChevronRight, ChevronDown, Loader2, LogOut, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -125,6 +126,7 @@ function DatabaseTablesDialog() {
 }
 
 export default function Home() {
+  const { user, logout } = useAuth();
   const [activeChatId, setActiveChatId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [sidebarExpanded, setSidebarExpanded] = useState(false);
@@ -376,7 +378,7 @@ export default function Home() {
               <p className="text-xs text-muted-foreground">Преобразование текста в SQL запросы</p>
             </div>
           </div>
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-2">
             {activeChatId && (
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -400,6 +402,26 @@ export default function Home() {
               </TooltipTrigger>
               <TooltipContent>Таблицы БД</TooltipContent>
             </Tooltip>
+            <div className="flex items-center gap-2 ml-2 pl-2 border-l">
+              <span className="text-sm text-muted-foreground flex items-center gap-1" data-testid="text-username">
+                <User className="w-3.5 h-3.5" />
+                {user?.username}
+              </span>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => logout.mutate()}
+                    disabled={logout.isPending}
+                    data-testid="button-logout"
+                  >
+                    <LogOut className="w-4 h-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Выйти</TooltipContent>
+              </Tooltip>
+            </div>
           </div>
         </header>
 

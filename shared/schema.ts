@@ -30,9 +30,17 @@ export const sales = pgTable("sales", {
   totalAmount: real("total_amount").notNull()
 });
 
+export const users = pgTable("users", {
+  id: serial("id").primaryKey(),
+  username: text("username").notNull().unique(),
+  passwordHash: text("password_hash").notNull(),
+  createdAt: bigint("created_at", { mode: "number" }).notNull()
+});
+
 export const chats = pgTable("chats", {
   id: text("id").primaryKey(),
   title: text("title").notNull(),
+  userId: integer("user_id").references(() => users.id, { onDelete: "cascade" }),
   createdAt: bigint("created_at", { mode: "number" }).notNull(),
   updatedAt: bigint("updated_at", { mode: "number" }).notNull()
 });
@@ -52,10 +60,12 @@ export const messages = pgTable("messages", {
 export const insertEmployeeSchema = createInsertSchema(employees).omit({ id: true });
 export const insertProductSchema = createInsertSchema(products).omit({ id: true });
 export const insertSaleSchema = createInsertSchema(sales).omit({ id: true });
+export const insertUserSchema = createInsertSchema(users).omit({ id: true });
 export const insertChatSchema = createInsertSchema(chats);
 export const insertMessageSchema = createInsertSchema(messages);
 
 // Select types
+export type User = typeof users.$inferSelect;
 export type Employee = typeof employees.$inferSelect;
 export type Product = typeof products.$inferSelect;
 export type Sale = typeof sales.$inferSelect;

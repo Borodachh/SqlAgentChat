@@ -1,4 +1,4 @@
-import type { Express, Request, Response } from "express";
+import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { chatRequestSchema, exportRequestSchema, type Message, type Chat } from "@shared/schema";
@@ -13,10 +13,89 @@ const chatIdSchema = z.object({
   chatId: z.string().min(1)
 });
 
+const authSchema = z.object({
+  username: z.string().min(2, "Имя пользователя должно содержать минимум 2 символа"),
+  password: z.string().min(4, "Пароль должен содержать минимум 4 символа")
+});
+
+function requireAuth(req: Request, res: Response, next: NextFunction) {
+  if (!req.session.userId) {
+    return res.status(401).json({ error: "Необходима авторизация" });
+  }
+  next();
+}
+
 export async function registerRoutes(app: Express): Promise<Server> {
-  app.get("/api/chats", async (req: Request, res: Response) => {
+  app.post("/api/auth/register", async (req: Request, res: Response) => {
     try {
-      const chats = await storage.getChats();
+      const { username, password } = authSchema.parse(req.body);
+      
+      const existing = await storage.getUserByUsername(username);
+      if (existing) {
+        return res.status(400).json({ error: "Пользователь с таким именем уже существует" });
+      }
+
+      const user = await storage.createUser(username, password);
+      req.session.userId = user.id;
+      req.session.username = user.username;
+
+      res.json({ id: user.id, username: user.username });
+    } catch (err: any) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ error: err.errors[0].message });
+      }
+      console.error("Error in /api/auth/register:", err);
+      res.status(500).json({ error: err.message || "Ошибка регистрации" });
+    }
+  });
+
+  app.post("/api/auth/login", async (req: Request, res: Response) => {
+    try {
+      const { username, password } = authSchema.parse(req.body);
+      
+      const user = await storage.getUserByUsername(username);
+      if (!user) {
+        return res.status(401).json({ error: "Неверное имя пользователя или пароль" });
+      }
+
+      const valid = await storage.validatePassword(user, password);
+      if (!valid) {
+        return res.status(401).json({ error: "Неверное имя пользователя или пароль" });
+      }
+
+      req.session.userId = user.id;
+      req.session.username = user.username;
+
+      res.json({ id: user.id, username: user.username });
+    } catch (err: any) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ error: err.errors[0].message });
+      }
+      console.error("Error in /api/auth/login:", err);
+      res.status(500).json({ error: err.message || "Ошибка входа" });
+    }
+  });
+
+  app.post("/api/auth/logout", (req: Request, res: Response) => {
+    req.session.destroy((err) => {
+      if (err) {
+        return res.status(500).json({ error: "Ошибка выхода" });
+      }
+      res.json({ success: true });
+    });
+  });
+
+  app.get("/api/auth/me", (req: Request, res: Response) => {
+    if (req.session.userId) {
+      res.json({ id: req.session.userId, username: req.session.username });
+    } else {
+      res.status(401).json({ error: "Не авторизован" });
+    }
+  });
+
+  app.get("/api/chats", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const chats = await storage.getChats(req.session.userId!);
       res.json({ chats });
     } catch (err: any) {
       console.error("Error in /api/chats:", err);
@@ -24,12 +103,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/chats", async (req: Request, res: Response) => {
+  app.post("/api/chats", requireAuth, async (req: Request, res: Response) => {
     try {
       const now = Date.now();
       const chat: Chat = {
         id: `chat-${now}`,
         title: "Новый чат",
+        userId: req.session.userId!,
         createdAt: now,
         updatedAt: now
       };
@@ -41,9 +121,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/chats/:chatId", async (req: Request, res: Response) => {
+  app.delete("/api/chats/:chatId", requireAuth, async (req: Request, res: Response) => {
     try {
       const { chatId } = req.params;
+      const chat = await storage.getChat(chatId);
+      if (!chat || chat.userId !== req.session.userId) {
+        return res.status(404).json({ error: "Чат не найден" });
+      }
       await storage.deleteChat(chatId);
       res.json({ success: true });
     } catch (err: any) {
@@ -52,9 +136,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/chats/:chatId/messages", async (req: Request, res: Response) => {
+  app.get("/api/chats/:chatId/messages", requireAuth, async (req: Request, res: Response) => {
     try {
       const { chatId } = req.params;
+      const chat = await storage.getChat(chatId);
+      if (!chat || chat.userId !== req.session.userId) {
+        return res.status(404).json({ error: "Чат не найден" });
+      }
       const messages = await storage.getMessages(chatId);
       res.json({ messages });
     } catch (err: any) {
@@ -81,7 +169,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/tables", async (req: Request, res: Response) => {
+  app.get("/api/tables", requireAuth, async (req: Request, res: Response) => {
     try {
       const adapter = await getActiveAdapter();
       const tables = await adapter.getTables();
@@ -92,13 +180,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/chats/:chatId/chat", async (req: Request, res: Response) => {
+  app.post("/api/chats/:chatId/chat", requireAuth, async (req: Request, res: Response) => {
     try {
       const { chatId } = req.params;
       const { message } = chatRequestSchema.parse(req.body);
 
       const chat = await storage.getChat(chatId);
-      if (!chat) {
+      if (!chat || chat.userId !== req.session.userId) {
         return res.status(404).json({ error: "Чат не найден" });
       }
 
@@ -215,7 +303,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/export", async (req: Request, res: Response) => {
+  app.post("/api/export", requireAuth, async (req: Request, res: Response) => {
     try {
       const { columns, rows, filename, sqlQuery } = exportRequestSchema.parse(req.body);
       const format = req.query.format as string || "xlsx";
@@ -374,7 +462,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/send-telegram", async (req: Request, res: Response) => {
+  app.post("/api/send-telegram", requireAuth, async (req: Request, res: Response) => {
     try {
       const botToken = process.env.TELEGRAM_BOT_TOKEN;
       const chatId = process.env.TELEGRAM_CHAT_ID;
@@ -386,6 +474,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { columns, rows, sqlQuery, format } = exportRequestSchema.extend({
         format: z.enum(["xlsx", "csv"]).default("xlsx")
       }).parse(req.body);
+
+      const username = req.session.username || "Unknown";
 
       let fileBuffer: Buffer;
       let filename: string;
@@ -448,7 +538,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         mimeType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
       }
 
-      const caption = sqlQuery ? `SQL: ${sqlQuery.substring(0, 200)}${sqlQuery.length > 200 ? '...' : ''}\n\nRows: ${rows.length}` : `Report: ${rows.length} rows`;
+      let caption = `${username}`;
+      if (sqlQuery) {
+        caption += `\nSQL: ${sqlQuery.substring(0, 200)}${sqlQuery.length > 200 ? '...' : ''}`;
+      }
+      caption += `\nRows: ${rows.length}`;
 
       const formData = new FormData();
       formData.append("chat_id", chatId);

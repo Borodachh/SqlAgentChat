@@ -1,10 +1,15 @@
-import { type Message, type Chat, messages, chats } from "@shared/schema";
+import { type Message, type Chat, type User, messages, chats, users } from "@shared/schema";
 import { db } from "./db";
-import { asc, desc, eq } from "drizzle-orm";
+import { asc, desc, eq, and } from "drizzle-orm";
+import bcrypt from "bcrypt";
 
 export interface IStorage {
+  createUser(username: string, password: string): Promise<User>;
+  getUserByUsername(username: string): Promise<User | null>;
+  getUserById(id: number): Promise<User | null>;
+  validatePassword(user: User, password: string): Promise<boolean>;
   createChat(chat: Chat): Promise<void>;
-  getChats(): Promise<Chat[]>;
+  getChats(userId: number): Promise<Chat[]>;
   getChat(id: string): Promise<Chat | null>;
   updateChat(id: string, title: string): Promise<void>;
   deleteChat(id: string): Promise<void>;
@@ -14,20 +19,48 @@ export interface IStorage {
 }
 
 export class DatabaseStorage implements IStorage {
+  async createUser(username: string, password: string): Promise<User> {
+    const passwordHash = await bcrypt.hash(password, 10);
+    const [user] = await db.insert(users).values({
+      username,
+      passwordHash,
+      createdAt: Date.now()
+    }).returning();
+    return user;
+  }
+
+  async getUserByUsername(username: string): Promise<User | null> {
+    const rows = await db.select().from(users).where(eq(users.username, username));
+    return rows[0] || null;
+  }
+
+  async getUserById(id: number): Promise<User | null> {
+    const rows = await db.select().from(users).where(eq(users.id, id));
+    return rows[0] || null;
+  }
+
+  async validatePassword(user: User, password: string): Promise<boolean> {
+    return bcrypt.compare(password, user.passwordHash);
+  }
+
   async createChat(chat: Chat): Promise<void> {
     await db.insert(chats).values({
       id: chat.id,
       title: chat.title,
+      userId: chat.userId,
       createdAt: chat.createdAt,
       updatedAt: chat.updatedAt
     });
   }
 
-  async getChats(): Promise<Chat[]> {
-    const rows = await db.select().from(chats).orderBy(desc(chats.updatedAt));
+  async getChats(userId: number): Promise<Chat[]> {
+    const rows = await db.select().from(chats)
+      .where(eq(chats.userId, userId))
+      .orderBy(desc(chats.updatedAt));
     return rows.map(row => ({
       id: row.id,
       title: row.title,
+      userId: row.userId,
       createdAt: Number(row.createdAt),
       updatedAt: Number(row.updatedAt)
     }));
@@ -40,6 +73,7 @@ export class DatabaseStorage implements IStorage {
     return {
       id: row.id,
       title: row.title,
+      userId: row.userId,
       createdAt: Number(row.createdAt),
       updatedAt: Number(row.updatedAt)
     };
