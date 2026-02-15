@@ -9,6 +9,12 @@ import { Download, Clock, Table as TableIcon, FileSpreadsheet, FileText, Send } 
 import { useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import SQLQueryDisplay from "./SQLQueryDisplay";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 interface ResultsPanelProps {
   results: {
@@ -159,26 +165,35 @@ export default function ResultsPanel({ results, messages }: ResultsPanelProps) {
               <FileText className="w-4 h-4" />
               CSV
             </Button>
-            <Button
-              onClick={() => handleTelegram("xlsx")}
-              disabled={telegramMutation.isPending}
-              variant="outline"
-              className="gap-2"
-              data-testid="button-telegram-excel"
-            >
-              <Send className="w-4 h-4" />
-              TG Excel
-            </Button>
-            <Button
-              onClick={() => handleTelegram("csv")}
-              disabled={telegramMutation.isPending}
-              variant="outline"
-              className="gap-2"
-              data-testid="button-telegram-csv"
-            >
-              <Send className="w-4 h-4" />
-              TG CSV
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="outline"
+                  className="gap-2"
+                  disabled={telegramMutation.isPending}
+                  data-testid="button-telegram"
+                >
+                  <Send className="w-4 h-4" />
+                  Telegram
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem
+                  onClick={() => handleTelegram("xlsx")}
+                  data-testid="button-telegram-excel"
+                >
+                  <FileSpreadsheet className="w-4 h-4" />
+                  Excel (.xlsx)
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => handleTelegram("csv")}
+                  data-testid="button-telegram-csv"
+                >
+                  <FileText className="w-4 h-4" />
+                  CSV (.csv)
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
 
