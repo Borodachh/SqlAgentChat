@@ -374,6 +374,105 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.post("/api/send-telegram", async (req: Request, res: Response) => {
+    try {
+      const botToken = process.env.TELEGRAM_BOT_TOKEN;
+      const chatId = process.env.TELEGRAM_CHAT_ID;
+
+      if (!botToken || !chatId) {
+        return res.status(400).json({ error: "Telegram не настроен. Укажите TELEGRAM_BOT_TOKEN и TELEGRAM_CHAT_ID." });
+      }
+
+      const { columns, rows, sqlQuery, format } = exportRequestSchema.extend({
+        format: z.enum(["xlsx", "csv"]).default("xlsx")
+      }).parse(req.body);
+
+      let fileBuffer: Buffer;
+      let filename: string;
+      let mimeType: string;
+
+      if (format === "csv") {
+        const csvRows: string[] = [];
+        if (sqlQuery) {
+          csvRows.push(`"SQL: ${sqlQuery.replace(/"/g, '""')}"`);
+          csvRows.push("");
+        }
+        csvRows.push(columns.map(col => `"${col.replace(/"/g, '""')}"`).join(","));
+        rows.forEach(row => {
+          const rowValues = columns.map(col => {
+            const value = row[col];
+            if (value === null || value === undefined) return "";
+            return `"${String(value).replace(/"/g, '""')}"`;
+          });
+          csvRows.push(rowValues.join(","));
+        });
+        fileBuffer = Buffer.from("\uFEFF" + csvRows.join("\n"), "utf-8");
+        filename = `report_${Date.now()}.csv`;
+        mimeType = "text/csv";
+      } else {
+        const workbook = new ExcelJS.Workbook();
+        const worksheet = workbook.addWorksheet("Query Results");
+        let dataStartRow = 1;
+
+        if (sqlQuery) {
+          const lastColLetter = worksheet.getColumn(Math.max(columns.length, 1)).letter;
+          worksheet.mergeCells(`A1:${lastColLetter}1`);
+          const queryCell = worksheet.getCell('A1');
+          queryCell.value = `SQL: ${sqlQuery}`;
+          queryCell.font = { italic: true, color: { argb: 'FF555555' } };
+          queryCell.alignment = { wrapText: true };
+          worksheet.getRow(1).height = 30;
+          dataStartRow = 3;
+        }
+
+        worksheet.columns = columns.map(col => ({ header: col, key: col, width: 20 }));
+
+        if (dataStartRow > 1) {
+          const headerRow = worksheet.getRow(dataStartRow);
+          columns.forEach((col, i) => { headerRow.getCell(i + 1).value = col; });
+          headerRow.font = { bold: true };
+          headerRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE0E0E0' } };
+          rows.forEach((row, idx) => {
+            const excelRow = worksheet.getRow(dataStartRow + 1 + idx);
+            columns.forEach((col, i) => { excelRow.getCell(i + 1).value = row[col] ?? ""; });
+          });
+        } else {
+          worksheet.getRow(1).font = { bold: true };
+          worksheet.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE0E0E0' } };
+          rows.forEach(row => { worksheet.addRow(row); });
+        }
+
+        const arrayBuffer = await workbook.xlsx.writeBuffer();
+        fileBuffer = Buffer.from(arrayBuffer);
+        filename = `report_${Date.now()}.xlsx`;
+        mimeType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+      }
+
+      const caption = sqlQuery ? `SQL: ${sqlQuery.substring(0, 200)}${sqlQuery.length > 200 ? '...' : ''}\n\nRows: ${rows.length}` : `Report: ${rows.length} rows`;
+
+      const formData = new FormData();
+      formData.append("chat_id", chatId);
+      formData.append("caption", caption);
+      formData.append("document", new Blob([fileBuffer], { type: mimeType }), filename);
+
+      const telegramResponse = await fetch(`https://api.telegram.org/bot${botToken}/sendDocument`, {
+        method: "POST",
+        body: formData
+      });
+
+      const telegramResult = await telegramResponse.json() as any;
+
+      if (!telegramResult.ok) {
+        throw new Error(telegramResult.description || "Ошибка отправки в Telegram");
+      }
+
+      res.json({ success: true, message: `Файл ${filename} отправлен в Telegram` });
+    } catch (err: any) {
+      console.error("Error in /api/send-telegram:", err);
+      res.status(500).json({ error: err.message || "Ошибка отправки в Telegram" });
+    }
+  });
+
   app.use("/exports", (req, res, next) => {
     const exportsDir = path.join(process.cwd(), "exports");
     return require("express").static(exportsDir)(req, res, next);

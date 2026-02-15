@@ -5,7 +5,7 @@ import ChartView from "./ChartView";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Download, Clock, Table as TableIcon, FileSpreadsheet, FileText } from "lucide-react";
+import { Download, Clock, Table as TableIcon, FileSpreadsheet, FileText, Send } from "lucide-react";
 import { useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import SQLQueryDisplay from "./SQLQueryDisplay";
@@ -74,9 +74,43 @@ export default function ResultsPanel({ results, messages }: ResultsPanelProps) {
     }
   });
 
+  const telegramMutation = useMutation({
+    mutationFn: async ({ format, data }: { format: "xlsx" | "csv"; data: { columns: string[]; rows: Record<string, any>[]; sqlQuery?: string } }) => {
+      const response = await fetch("/api/send-telegram", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...data, format })
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "Ошибка отправки");
+      return result;
+    },
+    onMutate: ({ format }) => {
+      toast({ title: "Отправка в Telegram", description: `Отправляем ${format.toUpperCase()} файл...` });
+    },
+    onSuccess: (data) => {
+      toast({ title: "Отправлено", description: data.message });
+    },
+    onError: (error: any) => {
+      toast({ title: "Ошибка Telegram", description: error.message, variant: "destructive" });
+    }
+  });
+
   const handleExport = (format: "xlsx" | "csv") => {
     if (!results) return;
     exportMutation.mutate({
+      format,
+      data: {
+        columns: results.columns,
+        rows: results.rows,
+        sqlQuery: results.sqlQuery
+      }
+    });
+  };
+
+  const handleTelegram = (format: "xlsx" | "csv") => {
+    if (!results) return;
+    telegramMutation.mutate({
       format,
       data: {
         columns: results.columns,
@@ -105,7 +139,7 @@ export default function ResultsPanel({ results, messages }: ResultsPanelProps) {
             </Badge>
           </div>
           
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <Button 
               onClick={() => handleExport("xlsx")}
               disabled={exportMutation.isPending}
@@ -124,6 +158,26 @@ export default function ResultsPanel({ results, messages }: ResultsPanelProps) {
             >
               <FileText className="w-4 h-4" />
               CSV
+            </Button>
+            <Button
+              onClick={() => handleTelegram("xlsx")}
+              disabled={telegramMutation.isPending}
+              variant="outline"
+              className="gap-2"
+              data-testid="button-telegram-excel"
+            >
+              <Send className="w-4 h-4" />
+              TG Excel
+            </Button>
+            <Button
+              onClick={() => handleTelegram("csv")}
+              disabled={telegramMutation.isPending}
+              variant="outline"
+              className="gap-2"
+              data-testid="button-telegram-csv"
+            >
+              <Send className="w-4 h-4" />
+              TG CSV
             </Button>
           </div>
         </div>

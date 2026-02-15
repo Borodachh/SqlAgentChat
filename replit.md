@@ -4,7 +4,7 @@
 Веб-приложение чат-бота с AI агентом для преобразования текстовых запросов на естественном языке в SQL запросы. Поддержка множества LLM провайдеров и баз данных с экспортом результатов в Excel и CSV.
 
 ## Текущее состояние
-Дата: 12 февраля 2026
+Дата: 15 февраля 2026
 - ✅ Multi-LLM Support: OpenAI, Ollama, Custom API
 - ✅ Multi-Database Support: PostgreSQL, ClickHouse
 - ✅ Type-aware SQL generation
@@ -13,6 +13,7 @@
 - ✅ Персистентная история сообщений
 - ✅ Множественные чаты с историей
 - ✅ Предупреждения при опасных SQL-командах (вместо ошибок)
+- ✅ Telegram интеграция: отправка Excel/CSV отчётов в Telegram
 - **Статус: PRODUCTION READY**
 
 ## Новые возможности (v2.0)
@@ -110,6 +111,7 @@ CLICKHOUSE_DATABASE=default
 ### Прочее
 - **GET /api/config** - Текущая конфигурация LLM и БД
 - **POST /api/export?format=xlsx|csv** - Экспорт результатов
+- **POST /api/send-telegram** - Отправка Excel/CSV в Telegram (format: xlsx|csv)
 
 ## Файловая структура
 ```
@@ -128,7 +130,7 @@ server/
 
 client/src/
   components/
-    ResultsPanel.tsx     # Excel + CSV export кнопки
+    ResultsPanel.tsx     # Excel + CSV export + Telegram кнопки
     ...
 ```
 
@@ -137,6 +139,12 @@ client/src/
 - Блокировка: DROP, DELETE, INSERT, UPDATE, ALTER, CREATE, TRUNCATE
 - Удаление комментариев
 - Валидация до выполнения
+
+## Telegram интеграция
+- Отправка Excel/CSV отчётов в Telegram через Bot API
+- Настройка: TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID
+- Кнопки "TG Excel" и "TG CSV" в панели результатов
+- Файл отправляется как документ с SQL-запросом в caption
 
 ## Зависимости
 - openai - универсальный SDK для всех LLM
@@ -150,6 +158,7 @@ client/src/
 ✅ Multi-Database поддержка
 ✅ Type-aware SQL generation
 ✅ Excel + CSV export
+✅ Telegram интеграция
 ✅ Graceful shutdown
 ✅ Error handling
 ✅ Security validation
