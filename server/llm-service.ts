@@ -191,6 +191,36 @@ export async function generateSQLQuery(
   }
 }
 
+export async function generateSQLTitle(sqlQuery: string): Promise<string> {
+  const config = getLLMConfig();
+  const client = getOpenAIClient(config);
+
+  try {
+    const completionOptions: any = {
+      model: config.model,
+      messages: [
+        { role: "system", content: "Ты помощник. Тебе дают SQL-запрос. Твоя задача — написать ОДИН короткий заголовок на русском языке (5-10 слов), описывающий смысл этого запроса. Без кавычек, без слова SQL, без технических деталей. Просто суть. Примеры: \"Выручка по месяцам за 2025 год\", \"Топ-10 клиентов по сумме заказов\", \"Количество сотрудников по отделам\"." },
+        { role: "user", content: sqlQuery }
+      ],
+    };
+
+    const isGPT5 = config.model.includes("gpt-5");
+    if (isGPT5) {
+      completionOptions.max_completion_tokens = 100;
+    } else {
+      completionOptions.temperature = 0.3;
+      completionOptions.max_tokens = 100;
+    }
+
+    const completion = await client.chat.completions.create(completionOptions);
+    const title = completion.choices[0]?.message?.content?.trim().replace(/^["«]|["»]$/g, '') || "Отчёт";
+    return title;
+  } catch (error: any) {
+    console.error("Error generating SQL title:", error.message);
+    return "Отчёт";
+  }
+}
+
 export function resetLLMClient(): void {
   openaiClient = null;
 }

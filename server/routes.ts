@@ -2,7 +2,7 @@ import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { chatRequestSchema, exportRequestSchema, type Message, type Chat } from "@shared/schema";
-import { generateSQLQuery } from "./llm-service";
+import { generateSQLQuery, generateSQLTitle } from "./llm-service";
 import { getActiveAdapter, getCurrentAdapterType, disconnectAdapter } from "./database-adapters";
 import { getActiveConfig } from "./llm-config";
 import ExcelJS from "exceljs";
@@ -349,14 +349,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { columns, rows, filename, sqlQuery } = exportRequestSchema.parse(req.body);
       const format = req.query.format as string || "xlsx";
 
+      let reportTitle = "Отчёт";
+      if (sqlQuery) {
+        try {
+          reportTitle = await generateSQLTitle(sqlQuery);
+        } catch (e) {
+          reportTitle = "Отчёт";
+        }
+      }
+
+      const now = new Date();
+      const dateStr = now.toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
+
       if (format === "csv") {
         const csvRows: string[] = [];
-        
-        if (sqlQuery) {
-          csvRows.push(`"SQL запрос: ${sqlQuery.replace(/"/g, '""')}"`);
-          csvRows.push("");
-        }
-        
+        csvRows.push(`"${reportTitle.replace(/"/g, '""')}"`);
+        csvRows.push(`"Дата: ${dateStr}"`);
+        csvRows.push("");
         csvRows.push(columns.map(col => `"${col.replace(/"/g, '""')}"`).join(","));
         
         rows.forEach(row => {
@@ -381,18 +390,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const workbook = new ExcelJS.Workbook();
       const worksheet = workbook.addWorksheet("Query Results");
 
-      let dataStartRow = 1;
+      const lastColLetter = worksheet.getColumn(Math.max(columns.length, 1)).letter;
 
-      if (sqlQuery) {
-        const lastColLetter = worksheet.getColumn(Math.max(columns.length, 1)).letter;
-        worksheet.mergeCells(`A1:${lastColLetter}1`);
-        const queryCell = worksheet.getCell('A1');
-        queryCell.value = `SQL: ${sqlQuery}`;
-        queryCell.font = { italic: true, color: { argb: 'FF555555' } };
-        queryCell.alignment = { wrapText: true };
-        worksheet.getRow(1).height = 30;
-        dataStartRow = 3;
-      }
+      worksheet.mergeCells(`A1:${lastColLetter}1`);
+      const titleCell = worksheet.getCell('A1');
+      titleCell.value = reportTitle;
+      titleCell.font = { bold: true, size: 14 };
+      titleCell.alignment = { horizontal: 'center', vertical: 'middle' };
+      worksheet.getRow(1).height = 28;
+
+      worksheet.mergeCells(`A2:${lastColLetter}2`);
+      const dateCell = worksheet.getCell('A2');
+      dateCell.value = `Дата: ${dateStr}`;
+      dateCell.font = { bold: true, size: 14 };
+      dateCell.alignment = { horizontal: 'center', vertical: 'middle' };
+      worksheet.getRow(2).height = 24;
+
+      const dataStartRow = 4;
 
       worksheet.columns = columns.map(col => ({
         header: col,
@@ -400,36 +414,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
         width: 20
       }));
 
-      if (dataStartRow > 1) {
-        const headerRow = worksheet.getRow(dataStartRow);
+      const headerRow = worksheet.getRow(dataStartRow);
+      columns.forEach((col, i) => {
+        headerRow.getCell(i + 1).value = col;
+      });
+      headerRow.font = { bold: true };
+      headerRow.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFE0E0E0' }
+      };
+
+      rows.forEach((row, idx) => {
+        const excelRow = worksheet.getRow(dataStartRow + 1 + idx);
         columns.forEach((col, i) => {
-          headerRow.getCell(i + 1).value = col;
+          excelRow.getCell(i + 1).value = row[col] ?? "";
         });
-        headerRow.font = { bold: true };
-        headerRow.fill = {
-          type: 'pattern',
-          pattern: 'solid',
-          fgColor: { argb: 'FFE0E0E0' }
-        };
-
-        rows.forEach((row, idx) => {
-          const excelRow = worksheet.getRow(dataStartRow + 1 + idx);
-          columns.forEach((col, i) => {
-            excelRow.getCell(i + 1).value = row[col] ?? "";
-          });
-        });
-      } else {
-        worksheet.getRow(1).font = { bold: true };
-        worksheet.getRow(1).fill = {
-          type: 'pattern',
-          pattern: 'solid',
-          fgColor: { argb: 'FFE0E0E0' }
-        };
-
-        rows.forEach(row => {
-          worksheet.addRow(row);
-        });
-      }
+      });
 
       const labelCandidates: string[] = [];
       const numericCandidates: string[] = [];
@@ -518,16 +519,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const username = req.session.username || "Unknown";
 
+      let reportTitle = "Отчёт";
+      if (sqlQuery) {
+        try {
+          reportTitle = await generateSQLTitle(sqlQuery);
+        } catch (e) {
+          reportTitle = "Отчёт";
+        }
+      }
+
+      const now = new Date();
+      const dateStr = now.toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
+
       let fileBuffer: Buffer;
       let filename: string;
       let mimeType: string;
 
       if (format === "csv") {
         const csvRows: string[] = [];
-        if (sqlQuery) {
-          csvRows.push(`"SQL: ${sqlQuery.replace(/"/g, '""')}"`);
-          csvRows.push("");
-        }
+        csvRows.push(`"${reportTitle.replace(/"/g, '""')}"`);
+        csvRows.push(`"Дата: ${dateStr}"`);
+        csvRows.push("");
         csvRows.push(columns.map(col => `"${col.replace(/"/g, '""')}"`).join(","));
         rows.forEach(row => {
           const rowValues = columns.map(col => {
@@ -543,35 +555,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } else {
         const workbook = new ExcelJS.Workbook();
         const worksheet = workbook.addWorksheet("Query Results");
-        let dataStartRow = 1;
 
-        if (sqlQuery) {
-          const lastColLetter = worksheet.getColumn(Math.max(columns.length, 1)).letter;
-          worksheet.mergeCells(`A1:${lastColLetter}1`);
-          const queryCell = worksheet.getCell('A1');
-          queryCell.value = `SQL: ${sqlQuery}`;
-          queryCell.font = { italic: true, color: { argb: 'FF555555' } };
-          queryCell.alignment = { wrapText: true };
-          worksheet.getRow(1).height = 30;
-          dataStartRow = 3;
-        }
+        const lastColLetter = worksheet.getColumn(Math.max(columns.length, 1)).letter;
+
+        worksheet.mergeCells(`A1:${lastColLetter}1`);
+        const titleCell = worksheet.getCell('A1');
+        titleCell.value = reportTitle;
+        titleCell.font = { bold: true, size: 14 };
+        titleCell.alignment = { horizontal: 'center', vertical: 'middle' };
+        worksheet.getRow(1).height = 28;
+
+        worksheet.mergeCells(`A2:${lastColLetter}2`);
+        const dateCell = worksheet.getCell('A2');
+        dateCell.value = `Дата: ${dateStr}`;
+        dateCell.font = { bold: true, size: 14 };
+        dateCell.alignment = { horizontal: 'center', vertical: 'middle' };
+        worksheet.getRow(2).height = 24;
+
+        const dataStartRow = 4;
 
         worksheet.columns = columns.map(col => ({ header: col, key: col, width: 20 }));
 
-        if (dataStartRow > 1) {
-          const headerRow = worksheet.getRow(dataStartRow);
-          columns.forEach((col, i) => { headerRow.getCell(i + 1).value = col; });
-          headerRow.font = { bold: true };
-          headerRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE0E0E0' } };
-          rows.forEach((row, idx) => {
-            const excelRow = worksheet.getRow(dataStartRow + 1 + idx);
-            columns.forEach((col, i) => { excelRow.getCell(i + 1).value = row[col] ?? ""; });
-          });
-        } else {
-          worksheet.getRow(1).font = { bold: true };
-          worksheet.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE0E0E0' } };
-          rows.forEach(row => { worksheet.addRow(row); });
-        }
+        const headerRow = worksheet.getRow(dataStartRow);
+        columns.forEach((col, i) => { headerRow.getCell(i + 1).value = col; });
+        headerRow.font = { bold: true };
+        headerRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE0E0E0' } };
+        rows.forEach((row, idx) => {
+          const excelRow = worksheet.getRow(dataStartRow + 1 + idx);
+          columns.forEach((col, i) => { excelRow.getCell(i + 1).value = row[col] ?? ""; });
+        });
 
         const arrayBuffer = await workbook.xlsx.writeBuffer();
         fileBuffer = Buffer.from(arrayBuffer);
@@ -579,11 +591,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         mimeType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
       }
 
-      let caption = `${username}`;
-      if (sqlQuery) {
-        caption += `\nSQL: ${sqlQuery.substring(0, 200)}${sqlQuery.length > 200 ? '...' : ''}`;
-      }
-      caption += `\nRows: ${rows.length}`;
+      let caption = `${username}\n${reportTitle}`;
+      caption += `\nСтрок: ${rows.length}`;
 
       const formData = new FormData();
       formData.append("chat_id", chatId);
