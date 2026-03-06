@@ -1,6 +1,7 @@
 import OpenAI from "openai";
 import pRetry, { AbortError } from "p-retry";
 import { getLLMConfig, LLMConfig, DatabaseType } from "./llm-config";
+import { isSafeReadOnlySQL } from "./security";
 
 let openaiClient: OpenAI | null = null;
 
@@ -119,46 +120,13 @@ export async function generateSQLQuery(
           }
 
           if (parsed.sqlQuery) {
-            const cleanQuery = parsed.sqlQuery.trim().replace(/\/\*[\s\S]*?\*\/|--.*$/gm, '').trim();
-            const upperQuery = cleanQuery.toUpperCase();
-            
-            // Split by semicolons to detect multi-statement queries
-            const statements = upperQuery.split(';').map((s: string) => s.trim()).filter((s: string) => s.length > 0);
-            
-            const dangerousKeywords = ['DROP', 'DELETE', 'INSERT', 'UPDATE', 'ALTER', 'CREATE', 'EXEC', 'EXECUTE', 'TRUNCATE'];
-            const keywordMessages: Record<string, string> = {
-              'DROP': 'Команда DROP запрещена. Я не могу удалять таблицы или базы данных.',
-              'DELETE': 'Команда DELETE запрещена. Я не могу удалять записи из таблиц.',
-              'INSERT': 'Команда INSERT запрещена. Я не могу добавлять новые записи в таблицы.',
-              'UPDATE': 'Команда UPDATE запрещена. Я не могу изменять существующие записи.',
-              'ALTER': 'Команда ALTER запрещена. Я не могу изменять структуру таблиц.',
-              'CREATE': 'Команда CREATE запрещена. Я не могу создавать новые таблицы или объекты.',
-              'TRUNCATE': 'Команда TRUNCATE запрещена. Я не могу очищать таблицы.',
-              'EXEC': 'Выполнение процедур запрещено.',
-              'EXECUTE': 'Выполнение процедур запрещено.'
-            };
-            
-            // Check each statement
-            for (const statement of statements) {
-              // Each statement must start with SELECT or WITH
-              if (!statement.startsWith('SELECT') && !statement.startsWith('WITH')) {
-                console.warn("Unsafe SQL query blocked:", parsed.sqlQuery);
-                return {
-                  sqlQuery: "",
-                  explanation: "Я могу выполнять только SELECT-запросы для чтения данных. Запросы на изменение данных (INSERT, UPDATE, DELETE) или структуры базы (CREATE, DROP, ALTER) запрещены в целях безопасности."
-                };
-              }
-              
-              // Check for dangerous keywords as statement starters (after split)
-              for (const keyword of dangerousKeywords) {
-                if (statement.startsWith(keyword)) {
-                  console.warn("Dangerous SQL keyword blocked:", keyword, parsed.sqlQuery);
-                  return {
-                    sqlQuery: "",
-                    explanation: keywordMessages[keyword] || "Обнаружена запрещённая команда. Разрешены только SELECT-запросы для чтения данных."
-                  };
-                }
-              }
+            const validation = isSafeReadOnlySQL(parsed.sqlQuery);
+            if (!validation.safe) {
+              console.warn("Unsafe SQL query blocked:", parsed.sqlQuery);
+              return {
+                sqlQuery: "",
+                explanation: validation.explanation || "Разрешены только безопасные SELECT-запросы для чтения данных."
+              };
             }
           }
 

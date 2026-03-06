@@ -5,6 +5,7 @@ import { chatRequestSchema, exportRequestSchema, type Message, type Chat } from 
 import { generateSQLQuery, generateSQLTitle } from "./llm-service";
 import { getActiveAdapter, getCurrentAdapterType, disconnectAdapter } from "./database-adapters";
 import { getActiveConfig } from "./llm-config";
+import { sanitizeSpreadsheetValue } from "./security";
 import ExcelJS from "exceljs";
 import path from "path";
 import { z } from "zod";
@@ -17,6 +18,30 @@ const authSchema = z.object({
   username: z.string().min(2, "Имя пользователя должно содержать минимум 2 символа"),
   password: z.string().min(4, "Пароль должен содержать минимум 4 символа")
 });
+
+function regenerateSession(req: Request): Promise<void> {
+  return new Promise((resolve, reject) => {
+    req.session.regenerate((err) => {
+      if (err) {
+        reject(err);
+        return;
+      }
+      resolve();
+    });
+  });
+}
+
+function saveSession(req: Request): Promise<void> {
+  return new Promise((resolve, reject) => {
+    req.session.save((err) => {
+      if (err) {
+        reject(err);
+        return;
+      }
+      resolve();
+    });
+  });
+}
 
 function requireAuth(req: Request, res: Response, next: NextFunction) {
   if (!req.session.userId) {
@@ -36,8 +61,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const user = await storage.createUser(username, password);
+      await regenerateSession(req);
       req.session.userId = user.id;
       req.session.username = user.username;
+      await saveSession(req);
 
       res.json({ id: user.id, username: user.username });
     } catch (err: any) {
@@ -63,8 +90,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ error: "Неверное имя пользователя или пароль" });
       }
 
+      await regenerateSession(req);
       req.session.userId = user.id;
       req.session.username = user.username;
+      await saveSession(req);
 
       res.json({ id: user.id, username: user.username });
     } catch (err: any) {
@@ -370,9 +399,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         rows.forEach(row => {
           const rowValues = columns.map(col => {
-            const value = row[col];
-            if (value === null || value === undefined) return "";
-            const strValue = String(value).replace(/"/g, '""');
+            const safeValue = sanitizeSpreadsheetValue(row[col]);
+            const strValue = String(safeValue).replace(/"/g, '""');
             return `"${strValue}"`;
           });
           csvRows.push(rowValues.join(","));
@@ -428,7 +456,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       rows.forEach((row, idx) => {
         const excelRow = worksheet.getRow(dataStartRow + 1 + idx);
         columns.forEach((col, i) => {
-          excelRow.getCell(i + 1).value = row[col] ?? "";
+          excelRow.getCell(i + 1).value = sanitizeSpreadsheetValue(row[col]);
         });
       });
 
@@ -479,7 +507,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         rows.forEach(row => {
           const chartRow: Record<string, any> = {};
           chartCols.forEach(col => {
-            chartRow[col] = row[col] ?? "";
+            chartRow[col] = sanitizeSpreadsheetValue(row[col]);
           });
           chartSheet.addRow(chartRow);
         });
@@ -543,9 +571,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         csvRows.push(columns.map(col => `"${col.replace(/"/g, '""')}"`).join(","));
         rows.forEach(row => {
           const rowValues = columns.map(col => {
-            const value = row[col];
-            if (value === null || value === undefined) return "";
-            return `"${String(value).replace(/"/g, '""')}"`;
+            const safeValue = sanitizeSpreadsheetValue(row[col]);
+            return `"${String(safeValue).replace(/"/g, '""')}"`;
           });
           csvRows.push(rowValues.join(","));
         });
@@ -582,7 +609,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         headerRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE0E0E0' } };
         rows.forEach((row, idx) => {
           const excelRow = worksheet.getRow(dataStartRow + 1 + idx);
-          columns.forEach((col, i) => { excelRow.getCell(i + 1).value = row[col] ?? ""; });
+          columns.forEach((col, i) => { excelRow.getCell(i + 1).value = sanitizeSpreadsheetValue(row[col]); });
         });
 
         const arrayBuffer = await workbook.xlsx.writeBuffer();

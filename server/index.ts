@@ -7,6 +7,14 @@ import { getActiveConfig } from "./llm-config";
 import { pool } from "./db";
 
 const app = express();
+const isProduction = process.env.NODE_ENV === "production";
+const sessionSecret = process.env.SESSION_SECRET;
+
+if (isProduction && !sessionSecret) {
+  throw new Error("SESSION_SECRET must be set in production");
+}
+
+app.set("trust proxy", 1);
 
 declare module 'http' {
   interface IncomingMessage {
@@ -35,13 +43,13 @@ app.use(session({
     tableName: 'session',
     createTableIfMissing: true,
   }),
-  secret: process.env.SESSION_SECRET || 'fallback-secret-change-me',
+  secret: sessionSecret || "development-session-secret",
   resave: false,
   saveUninitialized: false,
   cookie: {
     maxAge: 30 * 24 * 60 * 60 * 1000,
     httpOnly: true,
-    secure: false,
+    secure: isProduction,
     sameSite: 'lax',
   }
 }));
@@ -89,8 +97,8 @@ app.use((req, res, next) => {
     const status = err.status || err.statusCode || 500;
     const message = err.message || "Internal Server Error";
 
+    log(`Unhandled error: ${message}`);
     res.status(status).json({ message });
-    throw err;
   });
 
   if (app.get("env") === "development") {
